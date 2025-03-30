@@ -13,3 +13,12 @@
 
 - Refactor codebase to move away from monolithic file structure
 - Improve UI layout and user experience
+
+## Getting Started
+
+> 🚧 Work in Progress — Setup instructions will be added soon.
+
+## Requirements
+
+- Windows OS
+- Python >= 3.x / Node.js / MariaDB
