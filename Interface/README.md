@@ -26,8 +26,8 @@ It connects directly to the MariaDB database over a secure SSL connection.
 - **Windows OS** (tested)
 - Packages:
   ```bash
-  pip install PyQt5 mariadb pandas openpyxl matplotlib schedule fpdf
-'''
+  pip install PyQt5 mariadb pandas openpyxl matplotlib schedule
+  ```
 ---
 
 ## 🔒 SSL Config
