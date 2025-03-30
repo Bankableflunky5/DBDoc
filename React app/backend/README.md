@@ -52,6 +52,8 @@ db = mysql.createConnection({
     rejectUnauthorized: false
   }
 });
+```
+---
 ### 📨 Email Confirmation
 
 The API sends an email to the customer with their Job ID after submission.
@@ -73,6 +75,8 @@ const transporter = nodemailer.createTransport({
     pass: "your-app-password"         // Use your App Password, not normal Gmail password
   }
 });
+```
+---
 ##🔄 Data Workflow
 React frontend calls /api/open-form
 
