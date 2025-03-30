@@ -33,11 +33,6 @@ You’ll need:
 - Node.js (18+)
 - MariaDB or MySQL running locally or on your LAN
 - Python (for technician GUI, if using full DBDoc stack)
+- check the README in each frontend and backend folder for more information
 
 ---
-
-### 1. Backend Setup (`/backend`)
-
-```bash
-cd backend
-npm install
