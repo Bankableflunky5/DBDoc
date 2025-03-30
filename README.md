@@ -1,6 +1,21 @@
 # 💻 DBDoc
 
-**A full-stack desktop management system for tech repair shops** — with integrated booking, data handling, secure login, backups, and reporting tools. Built with 💙 PyQt5 for a modern, responsive GUI and MariaDB/MySQL support under the hood.
+**A full-stack repair shop management system**  
+with a beautiful desktop interface for technicians/admins and a browser-based booking form for customers.
+
+Built for real-world tech repair workflows. Works over a **local network**, with both GUI and web interfaces communicating through a shared MariaDB database.
+
+---
+
+## ⚙️ System Architecture
+
+```text
+[ Customer ] → [ React.js Frontend ] ──┐
+                                       │
+[ Technician/Admin ] → [ PyQt5 Desktop GUI ] ──> [ Python/Node Backend ] → [ MariaDB ]
+                                       │
+                               (Local Network)
+
 
 ---
 
