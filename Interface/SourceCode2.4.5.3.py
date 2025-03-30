@@ -4,49 +4,12 @@ import sys
 import json
 import logging
 from datetime import datetime
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QLineEdit, QTextEdit, QComboBox,
-    QPushButton, QHBoxLayout, QMessageBox, QCheckBox
-)
-from PyQt5.QtCore import QEvent  # Add this import
-from PyQt5.QtCore import QDate
-
-
-
-import threading
-import schedule
-from PyQt5.QtCore import Qt
-
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QPushButton, QComboBox, QMessageBox, QDateEdit
-from PyQt5.QtCore import QDate
-from datetime import datetime
-
-
-
+import time
+from threading import Thread
 
 # Database Libraries
 import mariadb
-import pymysql
 
-# GUI - PyQt5
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QByteArray
-from PyQt5.QtGui import QFont, QFontMetrics, QIcon
-from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QPushButton, 
-    QVBoxLayout, QHBoxLayout, QLineEdit, QTableWidget, QTableWidgetItem,
-    QComboBox, QTextEdit, QMessageBox, QFileDialog, QListWidget, 
-    QDialog, QScrollArea, QSizePolicy, QStackedWidget, QGridLayout, 
-    QFormLayout, QHeaderView, QInputDialog, QFrame
-)
-from PyQt5.QtWidgets import QListWidgetItem
-from PyQt5.QtWidgets import QSpacerItem, QSizePolicy
-
-
-# GUI - Tkinter (for file dialogs, if needed)
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter.simpledialog import askstring
 
 # Data Handling
 import pandas as pd
@@ -54,24 +17,29 @@ import numpy as np
 
 # Data Visualization
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-from PyQt5.QtWidgets import QAction
+# PyQt5 GUI Libraries
+from PyQt5.QtCore import (
+    Qt, QTimer, QEvent, QDate, QPropertyAnimation, 
+    QEasingCurve, QByteArray, QThread, pyqtSignal, QDateTime
+)
+from PyQt5.QtGui import QFont, QFontMetrics, QIcon, QPixmap
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QLabel, QPushButton, 
+    QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, 
+    QTableWidget, QTableWidgetItem, QCheckBox, QDialog, QScrollArea, 
+    QSizePolicy, QStackedWidget, QFormLayout, QHeaderView, 
+    QInputDialog, QFrame, QSpacerItem, QSplashScreen, QProgressBar, 
+    QFileDialog, QListWidget, QListWidgetItem, QStyle, QAction, QMessageBox
+)
 
-from PyQt5.QtWidgets import QSplashScreen, QProgressBar, QLabel, QVBoxLayout
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt
-from PyQt5.QtCore import QThread, pyqtSignal
-import time
-import threading
-from threading import Thread
+# Tkinter (for file dialogs, if needed)
+from tkinter import filedialog, messagebox
+from tkinter.simpledialog import askstring
 
-from PyQt5.QtCore import QThread, pyqtSignal
 
-from PyQt5.QtWidgets import QAction, QStyle, QApplication
-from fpdf import FPDF
-from PyQt5.QtCore import QDateTime
+
 
 
 def handle_db_error(error, context="Database Error"):
@@ -456,9 +424,9 @@ class DatabaseApp(QMainWindow):
 
 
           # Specify the SSL certificate paths (adjust to your paths)
-        ssl_ca = "pC:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
-        ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
-        ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
+        #ssl_ca = "pC:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
+        #ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
+        #ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
 
         print(f"🔍 Debug (Before MessageBox) - Database: {database}, Host: {host}")  # ✅ Debug print
 
@@ -473,9 +441,9 @@ class DatabaseApp(QMainWindow):
                 password=password,
                 host=host,
                 database=database,
-                ssl_ca=ssl_ca,
-                ssl_cert=ssl_cert,
-                ssl_key=ssl_key
+                #ssl_ca=ssl_ca,
+                #ssl_cert=ssl_cert,
+                #ssl_key=ssl_key
         
             )
             self.cursor = self.conn.cursor()

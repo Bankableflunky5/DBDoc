@@ -14,7 +14,7 @@ export default function SuccessPage() {
 
   const handleSubmitAnother = useCallback(async () => {
     try {
-      const response = await fetch("http://Insert IP address here:5000/close-connection", {
+      const response = await fetch("${process.env.NEXT_PUBLIC_API_URL}/close-connection", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
