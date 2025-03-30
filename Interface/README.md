@@ -38,6 +38,8 @@ ssl_ca = "C:/ssl/mariadb/ca.crt"
 ssl_cert = "C:/ssl/mariadb/client.crt"
 ssl_key = "C:/ssl/mariadb/client.key"
 ```
+Uncomment and configure these lines to secure your DB connection.
+---
 
 ---
 ## 💼 Settings File
