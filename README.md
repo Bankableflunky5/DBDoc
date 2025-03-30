@@ -1,6 +1,15 @@
-# DBDoc
-A full-stack booking and data management system for a tech repair shop, designed to streamline job tracking, data management, and customer communication while providing valuable insights into business data.
+## Features
 
-This project is a work in progress. Future updates will improve the layout, as I understand that having everything in a single "god file" is not ideal.
+- **Customer-facing booking form**
+- **Backend logic handling** for form submissions and data processing
+- **Technician interface** for insights and data input
+- **Template database** pre-configured for immediate use
 
-Currently built for windows environments.
+## Platform Support
+
+- Currently built for **Windows environments**
+
+## Roadmap / To Do
+
+- Refactor codebase to move away from monolithic file structure
+- Improve UI layout and user experience
