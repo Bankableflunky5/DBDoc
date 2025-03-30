@@ -35,6 +35,7 @@ This is the **customer-facing booking form** for DBDoc, built using **Next.js, R
 cd frontend
 npm install
 ```
+
 ### 2. Start development server
 ```bash
 npm run dev
