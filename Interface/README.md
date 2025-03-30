@@ -48,5 +48,16 @@ App config is saved in settings.json after you hit 💾 Save Settings.
 }
 ```
 ---
+## 🛑 Limitations
 
+- Currently built as a single large file
+- Windows file paths are hardcoded in SSL config
+- GUI doesnt yet suport roles/multi-user permissions
+---
+
+## 🛣️ Planned Upgrades
+- Modular codebase with multiple files/classes
+- More Visualizations
+- Role-based access
+- Linux/macOS support
 
