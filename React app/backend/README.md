@@ -47,4 +47,46 @@ db = mysql.createConnection({
     rejectUnauthorized: false
   }
 });
+---
+## 📨 Email Confirmation
+The API sends an email to the customer with their JobID after submission:
+- You must set up  a Gmail account and a google app password for the account
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: "your-email@gmail.com",
+    pass: "your-app-password"
+  }
+});
+---
+##🔄 Data Workflow
+React frontend calls /api/open-form
+
+Backend connects to DB
+
+Frontend calls /api/reserve-job to get a Job ID
+
+Form data is submitted via /submit
+
+Backend links or creates the customer record
+
+Job row is updated
+
+Email is sent with confirmation
+
+DB connection can be closed with /close-connection
+---
+##🛡 Security Notes
+DB access is wrapped in error handling
+
+Email fields and queries are parameterized
+
+Use SSL for both DB and SMTP for full end-to-end encryption
+
+Only bind to 0.0.0.0 on trusted local networks
+---
+
+
 
