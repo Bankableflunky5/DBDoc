@@ -83,6 +83,7 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - `PyQt5`, `mariadb`, `pymysql`, `pandas`, `openpyxl`, `matplotlib`, `schedule`
 - A running MariaDB or MySQL database
 - SSL certs for secure connection (`.crt`, `.key`)
+- node.js
 
 ---
 
