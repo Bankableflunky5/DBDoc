@@ -27,3 +27,12 @@ It connects directly to the MariaDB database over a secure SSL connection.
 - Packages:
   ```bash
   pip install PyQt5 mariadb pandas openpyxl matplotlib schedule fpdf
+'''
+---
+
+## 🔒 SSL Config
+'''bash
+ssl_ca = "C:/ssl/mariadb/ca.crt"
+ssl_cert = "C:/ssl/mariadb/client.crt"
+ssl_key = "C:/ssl/mariadb/client.key"
+
