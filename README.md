@@ -69,7 +69,6 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - **PyQt5** – GUI
 - **MariaDB / MySQL** – Database layer
 - **pandas / openpyxl / matplotlib** – Data handling & visualizations
-- **FPDF / Tkinter** – Optional dialogs and PDF generation
 - **Threading / Scheduling** – For background tasks like automated backups
 
 ---
@@ -81,7 +80,7 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 ### 🧰 Requirements
 
 - Python 3.x
-- `PyQt5`, `mariadb`, `pymysql`, `pandas`, `openpyxl`, `matplotlib`, `schedule`, `fpdf`
+- `PyQt5`, `mariadb`, `pymysql`, `pandas`, `openpyxl`, `matplotlib`, `schedule`
 - A running MariaDB or MySQL database
 - SSL certs for secure connection (`.crt`, `.key`)
 
