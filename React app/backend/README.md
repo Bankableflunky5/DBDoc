@@ -49,18 +49,28 @@ db = mysql.createConnection({
   }
 });
 ---
-## 📨 Email Confirmation
-The API sends an email to the customer with their JobID after submission:
-- You must set up  a Gmail account and a google app password for the account
+### 📨 Email Confirmation
+
+The API sends an email to the customer with their Job ID after submission.
+
+To enable this:
+
+- Set up a Gmail account
+- Generate a **Google App Password** (required if you have 2FA enabled)
+
+Then configure the transporter in your backend code like this:
+
+```js
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
   secure: true,
   auth: {
-    user: "your-email@gmail.com",
-    pass: "your-app-password"
+    user: "your-email@gmail.com",     // Replace with your Gmail
+    pass: "your-app-password"         // Use your App Password, not normal Gmail password
   }
 });
+
 ---
 ##🔄 Data Workflow
 React frontend calls /api/open-form
