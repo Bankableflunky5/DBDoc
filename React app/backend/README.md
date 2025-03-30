@@ -32,7 +32,7 @@ cd backend
 npm install
 node backend.js
 
-## SSL
+SSL
 💡 You may uncomment this section in backend.js to activate it.
 
 db = mysql.createConnection({
