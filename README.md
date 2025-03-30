@@ -20,3 +20,19 @@ A hybrid full-stack system for tech repair shops, featuring:
                         [ Backend API (Flask or Node.js) ] → [ MariaDB ]
                                           ▲      ▲
                                 Secure via SSL (local)
+🚀 Overview
+DBDoc is designed to streamline the daily workflow of repair shops by offering:
+
+🧾 Client Job Booking
+
+🛠️ Technician-Facing Tools
+
+📊 Real-Time Data Insights
+
+💾 Scheduled Backups & Restoration
+
+🗂️ Custom Table Management
+
+🔐 Secure Login & Role-Based Access (Planned)
+
+Built with an emphasis on usability, aesthetic polish, and real-world repair shop needs.
