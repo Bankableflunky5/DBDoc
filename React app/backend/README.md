@@ -33,9 +33,11 @@ npm install
 node backend.js
 ---
 
-## SSL
-💡 You may uncomment this section in backend.js to activate it.
+## 🔐 SSL Configuration
 
+💡 You may uncomment this section in `backend.js` to enable SSL when connecting to MariaDB:
+
+```js
 db = mysql.createConnection({
   host: "your-db-host",
   user: "your-db-user",
@@ -48,6 +50,7 @@ db = mysql.createConnection({
     rejectUnauthorized: false
   }
 });
+
 ---
 ### 📨 Email Confirmation
 
