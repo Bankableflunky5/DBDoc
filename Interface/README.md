@@ -31,8 +31,22 @@ It connects directly to the MariaDB database over a secure SSL connection.
 ---
 
 ## 🔒 SSL Config
-'''bash
+To enable SSL database connections, update the login() method:
+```bash
 ssl_ca = "C:/ssl/mariadb/ca.crt"
 ssl_cert = "C:/ssl/mariadb/client.crt"
 ssl_key = "C:/ssl/mariadb/client.key"
+```
+Uncomment and configure these lines to secure your DB connection.
+---
+## 💼 Settings File
+App config is saved in settings.json after you hit 💾 Save Settings.
+```bash
+{
+  "host": "localhost",
+  "database": "repair_shop"
+}
+```
+---
+
 
