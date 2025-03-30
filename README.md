@@ -1,70 +1,77 @@
-# DBDoc
+# 💻 DBDoc
 
-A full-stack booking and data management system built for tech repair shops.
+**A full-stack desktop management system for tech repair shops** — with integrated booking, data handling, secure login, backups, and reporting tools. Built with 💙 PyQt5 for a modern, responsive GUI and MariaDB/MySQL support under the hood.
 
 ---
 
 ## 🚀 Overview
 
-DBDoc is designed to **streamline job tracking**, **simplify customer communication**, and **deliver meaningful insights** into your repair business operations. It combines a customer-facing booking interface with backend logic and a technician dashboard—built to make life easier on both sides of the counter.
+DBDoc is designed to streamline the daily workflow of repair shops by offering:
 
-> ⚠️ This is a work-in-progress project. The current version uses a monolithic "god file" structure—modularization and layout improvements are on the roadmap.
+- 🧾 **Client Job Booking**
+- 🛠️ **Technician-Facing Tools**
+- 📊 **Real-Time Data Insights**
+- 💾 **Scheduled Backups & Restoration**
+- 🗂️ **Custom Table Management**
+- 🔐 **Secure Login & Role-Based Access (Planned)**
+
+It's built with an emphasis on usability, aesthetic polish, and real-world repair shop needs.
 
 ---
 
-## 🔧 Features
+## ✨ Key Features
 
-- 📝 **Customer Booking Form**  
-  A simple, user-friendly interface for clients to submit repair requests.
-
-- 🧠 **Backend Logic**  
-  Handles form submission, data processing, and business logic behind the scenes.
-
-- 🧰 **Technician Dashboard**  
-  Internal interface for technicians to log progress, access data, and get insights.
-
-- 🗂️ **Template Database**  
-  Pre-configured database schema built specifically around repair shop workflows.
+- **Modern Dark-Themed UI** built with PyQt5
+- **Secure login system** with animated elements and password visibility toggle
+- **Settings Manager** with host/db config stored in JSON
+- **Main Menu** for quick navigation with emoji-aligned buttons
+- **Table Viewer & Editor** with:
+  - Inline editing
+  - Pagination
+  - Status dropdowns (with conditional logic)
+  - Auto-refresh
+  - Search by column
+- **Scheduled & Manual Database Backups**
+- **Database Restore Function** with `.sql` import
+- **Excel Export** for full databases (multi-sheet)
+- **Change DB Password Tool** built-in
+- **Dynamic AUTO_INCREMENT logic** to avoid primary key conflicts
 
 ---
 
 ## 🖥️ Platform Support
 
-- 🪟 **Windows-only (for now)**  
-  Designed and tested in a Windows environment. Cross-platform compatibility may be considered later.
+- ✅ **Built for Windows**  
+- 🐧 Linux/macOS not yet tested — some paths and SSL cert configs are OS-specific
 
 ---
 
-## 🛣️ Roadmap
+## 🧠 Technologies Used
 
-- 🔄 Refactor out of monolithic file structure
-- 🎨 Improve UI layout and overall user experience
-- 🧪 Add proper error handling and form validation
-- 🌐 Explore deployment and hosting options
-- 📈 Introduce reporting tools and advanced analytics
+- **Python 3.x**
+- **PyQt5** – GUI
+- **MariaDB / MySQL** – Database layer
+- **pandas / openpyxl / matplotlib** – Data handling & visualizations
+- **FPDF / Tkinter** – Optional dialogs and PDF generation
+- **Threading / Scheduling** – For background tasks like automated backups
 
 ---
 
 ## 📦 Getting Started
 
-> Setup instructions will be added in future updates.
+> ⚙️ **Work in Progress** – Full install steps will be added soon.
 
-**Requirements (planned):**
-- Python >= 3.x (or specify actual backend language)
-- [Other dependencies]
+### 🧰 Requirements
 
----
+- Python 3.x
+- `PyQt5`, `mariadb`, `pymysql`, `pandas`, `openpyxl`, `matplotlib`, `schedule`, `fpdf`
+- A running MariaDB or MySQL database
+- SSL certs for secure connection (`.crt`, `.key`)
 
-## 🤝 Contributing
+### 🔧 Setup Notes
 
-This project is currently in solo development, but feedback or pull requests are welcome once it's in a more stable state.
-
----
-
-## 📍 Notes
-
-- The goal is to keep this tool lightweight but powerful.
-- Built for real-world tech shop workflows—feedback from actual repair techs is shaping the roadmap.
-
----
-
+- Update the SSL cert paths in the login method:
+  ```python
+  ssl_ca = "C:/ssl/mariadb/mariadb.crt"
+  ssl_cert = "C:/ssl/mariadb/mariadb.crt"
+  ssl_key = "C:/ssl/mariadb/mariadb.key"
