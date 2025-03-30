@@ -31,6 +31,8 @@ This is the Node.js backend for **DBDoc**, responsible for handling customer for
 cd backend
 npm install
 node backend.js
+```
+
 ---
 
 ## 🔐 SSL Configuration
