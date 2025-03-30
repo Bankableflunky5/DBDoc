@@ -30,7 +30,7 @@ DBDoc is designed to streamline the daily workflow of repair shops by offering:
 - 📊 **Real-Time Data Insights**
 - 💾 **Scheduled Backups & Restoration**
 - 🗂️ **Custom Table Management**
-- 🔐 **Secure Login & Role-Based Access (Planned)**
+- 🔐 **Secure Login**
 
 It's built with an emphasis on usability, aesthetic polish, and real-world repair shop needs.
 
