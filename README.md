@@ -4,6 +4,16 @@
 
 ---
 
+## ⚙️ System Architecture
+
+```text
+[ Customer ] → [ React.js Frontend ] ──┐
+                                       │
+[ Technician/Admin ] → [ PyQt5 Desktop GUI ] ──> [ Python/Node Backend ] → [ MariaDB ]
+                                       │
+                               (Local Network)
+---
+
 ## 🚀 Overview
 
 DBDoc is designed to streamline the daily workflow of repair shops by offering:
