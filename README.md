@@ -84,10 +84,3 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - A running MariaDB or MySQL database
 - SSL certs for secure connection (`.crt`, `.key`)
 
-### 🔧 Setup Notes
-
-- Update the SSL cert paths in the login method:
-  ```python
-  ssl_ca = "C:/ssl/mariadb/mariadb.crt"
-  ssl_cert = "C:/ssl/mariadb/mariadb.crt"
-  ssl_key = "C:/ssl/mariadb/mariadb.key"
