@@ -41,6 +41,20 @@ npm install
 npm run dev
 ```
 App runs at http://localhost:3000 or http://YourIPAdress:3000
+
+### 3. 🌐 Environment Variables
+
+This app uses an environment variable to dynamically reference your backend API.
+
+Create a `.env.local` file in the root of your `frontend/` folder with the following:
+
+```env
+NEXT_PUBLIC_API_URL=http://<your-local-IP>:5000
+
+Replace <your-local-IP> with the IP address of the machine running the backend server.
+Example: http://192.168.0.42:5000
+
+
 ---
 ## 🔄️ Page Flow
 1. Homepage  
