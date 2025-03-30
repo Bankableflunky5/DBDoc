@@ -77,7 +77,7 @@ const transporter = nodemailer.createTransport({
 });
 ```
 ---
-##🔄 Data Workflow
+## 🔄 Data Workflow
 React frontend calls /api/open-form
 
 Backend connects to DB
@@ -94,7 +94,7 @@ Email is sent with confirmation
 
 DB connection can be closed with /close-connection
 ---
-##🛡 Security Notes
+## 🛡 Security Notes
 DB access is wrapped in error handling
 
 Email fields and queries are parameterized
