@@ -3,16 +3,7 @@
 **A full-stack desktop management system for tech repair shops** — with integrated booking, data handling, secure login, backups, and reporting tools. Built with 💙 PyQt5 for a modern, responsive GUI and MariaDB/MySQL support under the hood.
 
 ---
----
-## ⚙️ System Architecture
 
-```text
-[ Customer ] → [ React.js Frontend ] ──┐
-                                       │
-[ Technician/Admin ] → [ PyQt5 Desktop GUI ] ──> [ Python/Node Backend ] → [ MariaDB ]
-                                       │
-                               (Local Network)
----
 
 ## 🚀 Overview
 
