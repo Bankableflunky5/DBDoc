@@ -7,7 +7,7 @@
 ```markdown
 ## 📐 System Architecture
 
-```text
+
 [ Customer ] ──> [ React.js Frontend ] ──> [ Node.js Backend ] ──> [ MariaDB ]
                                                                        ▲
                    (API handles form submissions & secures DB access)  │
