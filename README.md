@@ -84,3 +84,19 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - A running MariaDB or MySQL database
 - SSL certs for secure connection (`.crt`, `.key`)
 
+---
+
+## 🛣️ Roadmap / Planned Updates
+
+> Short-term development goals for improving the project:
+
+- [ ] **Introduce more environment variables** in the React app  
+  Move away from hardcoded values and centralize config for flexibility and cleaner deployment.
+
+- [ ] **Add data visualizations** to the PyQt5 desktop interface  
+  Charts, graphs, or dashboards to give technicians/admins insight into business trends (e.g., job volume, status distribution, device types).
+
+- [ ] **Refactor the PyQt5 "god file"** into multiple modules  
+  Improve maintainability and readability by splitting the large monolithic script into separate components (e.g., login, table view, backup logic, etc.).
+
+
