@@ -58,18 +58,18 @@ SMTP_PASSWORD=your_app_password
 💡 You may uncomment this section in `backend.js` to enable SSL when connecting to MariaDB:
 
 ```js
-db = mysql.createConnection({
-  host: "your-db-host",
-  user: "your-db-user",
-  password: "your-db-password",
-  database: "your-db-name",
-  ssl: {
-    ca: fs.readFileSync("C:/ssl/mariadb/ca.crt"),
-    cert: fs.readFileSync("C:/ssl/mariadb/client.crt"),
-    key: fs.readFileSync("C:/ssl/mariadb/client.key"),
-    rejectUnauthorized: false
-  }
-});
+    db = mysql.createConnection({
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        ssl: process.env.DB_SSL_CA ? {
+            ca: fs.readFileSync(process.env.DB_SSL_CA),
+            cert: fs.readFileSync(process.env.DB_SSL_CERT),
+            key: fs.readFileSync(process.env.DB_SSL_KEY),
+            rejectUnauthorized: false,
+        } : undefined
+    });
 ```
 ---
 ### 📨 Email Confirmation
