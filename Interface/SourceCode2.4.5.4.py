@@ -21,7 +21,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 # PyQt5 GUI Libraries
 from PyQt5.QtCore import (
-    Qt, QTimer, QEvent, QDate, QPropertyAnimation, 
+    Qt, QEvent, QDate, QPropertyAnimation, 
     QEasingCurve, QByteArray, QThread, pyqtSignal, QDateTime
 )
 from PyQt5.QtGui import QFont, QFontMetrics, QIcon, QPixmap
@@ -34,8 +34,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QListWidget, QListWidgetItem, QStyle, QAction, QMessageBox
 )
 
-
-
+import schedule
 
 
 
@@ -132,6 +131,7 @@ class DatabaseApp(QMainWindow):
         super().__init__()
         self.load_schedule_on_startup() 
         self.is_refreshing = False  # Flag to track whether refresh is in progress
+        self.is_backup_running = False  # Track if a backup is in progress
 
         self.setWindowTitle("The Laptop Doctor")
         self.is_adding_new_record = False  # Initialize the flag
@@ -983,17 +983,40 @@ class DatabaseApp(QMainWindow):
         thread.daemon = True
         thread.start()
 
-    def run_scheduled_backups(self): #FILE_OPS
+    def run_scheduled_backups(self):  # FILE_OPS
         """Run the scheduled backups in the background."""
         while True:
-            schedule.run_pending()
-            time.sleep(1)
+            schedule.run_pending()  # Execute any scheduled tasks
+            time.sleep(1)  # Sleep to avoid busy-waiting
 
-    def trigger_backup(self, backup_directory): #FILE_OPS -CHECK LOGIC
+    def trigger_backup(self, backup_directory):  # FILE_OPS - CHECK LOGIC
         """Trigger the backup process at the scheduled time."""
         if not backup_directory:
-            
+            print("Backup directory is not provided.")
             return
+
+        if self.is_backup_running:  # Prevent multiple backups from running at the same time
+            print("Backup is already running. Please wait for it to finish.")
+            return
+
+        self.is_backup_running = True  # Set the flag to indicate backup is in progress
+
+        try:
+            # Call the actual backup function and pass the directory
+            self.backup_database(backup_directory)
+            print(f"Backup successfully triggered for directory: {backup_directory}")
+        except Exception as e:
+            print(f"Backup trigger failed: {e}")
+        finally:
+            self.is_backup_running = False  # Reset the flag after the backup is completed
+
+    def backup_database(self, backup_directory=None):  # FILE_OPS (MAYBE UTILS)
+        """Perform the actual database backup."""
+        # If no directory is passed, prompt the user to select one
+        if not backup_directory:
+            backup_directory = QFileDialog.getExistingDirectory(self, "Select Backup Directory")
+            if not backup_directory:  # If no directory is selected, exit the function
+                return
 
         # Generate a timestamped filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1001,13 +1024,40 @@ class DatabaseApp(QMainWindow):
 
         try:
             with open(backup_file, "w") as f:
-                # Your database backup logic here...
-                pass
+                # Write commands to disable foreign key checks
+                f.write("SET FOREIGN_KEY_CHECKS = 0;\n\n")
 
-            
+                # Get all table names
+                self.cursor.execute("SHOW TABLES;")
+                tables = [table[0] for table in self.cursor.fetchall()]
+
+                for table in tables:
+                    # Get the CREATE TABLE statement
+                    self.cursor.execute(f"SHOW CREATE TABLE {table};")
+                    create_table_statement = self.cursor.fetchone()[1]
+                    f.write(f"{create_table_statement};\n\n")
+
+                    # Export table data
+                    self.cursor.execute(f"SELECT * FROM {table};")
+                    rows = self.cursor.fetchall()
+                    columns = [desc[0] for desc in self.cursor.description]
+
+                    # Generate INSERT statements
+                    for row in rows:
+                        values = ", ".join(
+                            "'{}'".format(str(value).replace("'", "''")) if value is not None else "NULL"
+                            for value in row
+                        )
+                        f.write(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({values});\n")
+                    f.write("\n")
+
+                # Write commands to re-enable foreign key checks
+                f.write("SET FOREIGN_KEY_CHECKS = 1;\n")
+
+            QMessageBox.information(self, "Success", f"Database backup saved to {backup_file}.")
         except Exception as e:
-            print("oh dear")
-    
+            QMessageBox.critical(self, "Error", f"Failed to back up database: {e}")
+
     def change_db_password(self): #DB_UTILS
         """Prompts the user to enter their old password, a new password, and confirm the new password before updating it."""
         
@@ -1185,51 +1235,6 @@ class DatabaseApp(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to export database: {e}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
-
-    def backup_database(self): #FILE_OPS (MAYBE UTILS)
-        directory = QFileDialog.getExistingDirectory(self, "Select Backup Directory")
-        if not directory:
-            return
-
-        # Generate a timestamped filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = os.path.join(directory, f"database_backup_{timestamp}.sql")
-
-        try:
-            with open(backup_file, "w") as f:
-                # Write commands to disable foreign key checks
-                f.write("SET FOREIGN_KEY_CHECKS = 0;\n\n")
-
-                # Get all table names
-                self.cursor.execute("SHOW TABLES;")
-                tables = [table[0] for table in self.cursor.fetchall()]
-
-                for table in tables:
-                    # Get the CREATE TABLE statement
-                    self.cursor.execute(f"SHOW CREATE TABLE {table};")
-                    create_table_statement = self.cursor.fetchone()[1]
-                    f.write(f"{create_table_statement};\n\n")
-
-                    # Export table data
-                    self.cursor.execute(f"SELECT * FROM {table};")
-                    rows = self.cursor.fetchall()
-                    columns = [desc[0] for desc in self.cursor.description]
-
-                    # Generate INSERT statements
-                    for row in rows:
-                        values = ", ".join(
-                            "'{}'".format(str(value).replace("'", "''")) if value is not None else "NULL"
-                            for value in row
-                        )
-                        f.write(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({values});\n")
-                    f.write("\n")
-
-                # Write commands to re-enable foreign key checks
-                f.write("SET FOREIGN_KEY_CHECKS = 1;\n")
-
-            QMessageBox.information(self, "Success", f"Database backup saved to {backup_file}.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to back up database: {e}")
 
     def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""
