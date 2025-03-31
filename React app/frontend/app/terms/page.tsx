@@ -8,7 +8,7 @@ export default function TermsPage() {
     return (
         <div className="max-w-3xl mx-auto p-8 bg-white shadow-md rounded-lg mt-10">
             <h1 className="text-3xl font-semibold text-gray-800">Terms & Conditions</h1>
-            <p className="text-gray-600 mt-2">Last Updated: February 2025</p>
+            <p className="text-gray-600 mt-2">Last Updated: March 2025</p>
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">1. Introduction</h2>
             <p className="text-gray-700 mt-2">
@@ -22,7 +22,7 @@ export default function TermsPage() {
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">3. Service Terms</h2>
             <p className="text-gray-700 mt-2">
-                Any repair services provided are subject to availability and pricing. By signing this document, you give Your business name permission to assess or repair the above device, and you are liable for all agreed payments related to the assessment or repair.
+                Any repair services provided are subject to availability and pricing. By signing this document, you give (your business name) permission to assess or repair the above device, and you are liable for all agreed payments related to the assessment or repair.
             </p>
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">4. Assessment Fee</h2>
@@ -32,28 +32,28 @@ export default function TermsPage() {
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">5. Data Responsibility</h2>
             <p className="text-gray-700 mt-2">
-                It is your responsibility to ensure all data is backed up before the repair. Your business name is not liable for any loss of data during the assessment or repair process.
+                It is your responsibility to ensure all data is backed up before the repair. (your business name) is not liable for any loss of data during the assessment or repair process.
             </p>
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">6. Device Condition and Liability</h2>
             <p className="text-gray-700 mt-2">
-                You accept that your device may only exhibit certain symptoms of a larger technical issue. Your business name is not responsible for any further faults occurring during or after the repair or assessment.
+                You accept that your device may only exhibit certain symptoms of a larger technical issue. (your business name) is not responsible for any further faults occurring during or after the repair or assessment.
             </p>
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">7. Device Collection</h2>
             <p className="text-gray-700 mt-2">
-                You must be informed by Your business name that the device is fully repaired and tested before collection. Any device collected mid-repair voids all warranties, and the customer is still liable for full payment. Once the device is collected, any further unrelated faults will be chargeable.
+                You must be informed by (your business name) that the device is fully repaired and tested before collection. Any device collected mid-repair voids all warranties, and the customer is still liable for full payment. Once the device is collected, any further unrelated faults will be chargeable.
             </p>
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">8. Warranty and Liability</h2>
             <p className="text-gray-700 mt-2">
-                You accept that this repair may void any existing warranties. Your business name is not responsible for any items left with us for longer than 30 days after notification of collection. We will dispose of such items after this period.
+                You accept that this repair may void any existing warranties. (your business name) is not responsible for any items left with us for longer than 30 days after notification of collection. We will dispose of such items after this period.
             </p>
             <p className="text-gray-700 mt-2">
-                Your business name provides the following warranties on repairs: 3 months for new hardware repairs, 1 month for reconditioned hardware repairs, and 1 week for software repairs. Games consoles are not covered by the warranty if they have been previously repaired or reflowed.
+                (your business name) provides the following warranties on repairs: 3 months for new hardware repairs, 1 month for reconditioned hardware repairs, and 1 week for software repairs. Games consoles are not covered by the warranty if they have been previously repaired or reflowed.
             </p>
             <p className="text-gray-700 mt-2">
-                Your business name will not be held responsible for loss or damage to equipment due to fire, theft, accident, or any other cause beyond our control.
+                (your business name) will not be held responsible for loss or damage to equipment due to fire, theft, accident, or any other cause beyond our control.
             </p>
 
             <h2 className="text-xl font-semibold mt-6 text-gray-700">9. Changes to Terms</h2>
