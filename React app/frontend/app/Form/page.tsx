@@ -32,7 +32,7 @@ export default function Home() {
   useEffect(() => {
     const fetchNextJobID = async () => {
       try {
-        const response = await axios.get("${process.env.NEXT_PUBLIC_API_URL}/next-job-id");
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/next-job-id`);
         setNextJobID(response.data.nextJobID);
       } catch (error) {
         console.error("Error fetching next Job ID:", error);
@@ -84,7 +84,7 @@ export default function Home() {
         jobID: nextJobID,
       };
   
-      await axios.post("${process.env.NEXT_PUBLIC_API_URL}/submit", payload);
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/submit`, payload);
       router.push("/success");
     } catch (error) {
       console.error("Axios Error:", error.response ? error.response.data : error.message);

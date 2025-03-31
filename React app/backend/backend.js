@@ -1,3 +1,7 @@
+require("dotenv").config();
+console.log("🔎 DB_HOST:", process.env.DB_HOST, process.env.DB_USER, process.env.DB_PASSWORD); // Debugging
+
+
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -15,33 +19,39 @@ app.use(express.json());
 
 // Open form route
 app.post("/api/open-form", (req, res) => {
-    // Check if db is already initialized
-        // Create a new connection if it doesn't exist
-        db = mysql.createConnection({
-            host: "",
-            user: "",
-            password: "",
-            database: "",
-            //ssl: {
-              //  ca: fs.readFileSync('C:/ssl/mariadb/mariadb.crt'),
-              //  cert: fs.readFileSync('C:/ssl/mariadb/mariadb.crt'),
-               // key: fs.readFileSync('C:/ssl/mariadb/mariadb.key'),
-              //  rejectUnauthorized: false,
-           // },
-        });
+    console.log("📌 Received request to open form");
 
-        // Establish the connection
-        db.connect((err) => {
-            if (err) {
-                console.error("❌ Database connection failed:", err.message);
-                return res.status(500).json({ error: "Database connection failed", details: err.message });
-            } else {
-                console.log("✅ Database connected");
-                res.status(200).json({ message: "Database connection established" });
-            }
-        });
+    if (process.env.DB_SSL_CA) {
+        console.log("🔎 Checking SSL files...");
+        console.log("DB_SSL_CA:", fs.existsSync(process.env.DB_SSL_CA) ? "✅ Exists" : "❌ Not found");
+        console.log("DB_SSL_CERT:", fs.existsSync(process.env.DB_SSL_CERT) ? "✅ Exists" : "❌ Not found");
+        console.log("DB_SSL_KEY:", fs.existsSync(process.env.DB_SSL_KEY) ? "✅ Exists" : "❌ Not found");
     }
-);
+
+    db = mysql.createConnection({
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        ssl: process.env.DB_SSL_CA ? {
+            ca: fs.readFileSync(process.env.DB_SSL_CA),
+            cert: fs.readFileSync(process.env.DB_SSL_CERT),
+            key: fs.readFileSync(process.env.DB_SSL_KEY),
+            rejectUnauthorized: false,
+        } : undefined
+    });
+
+    db.connect((err) => {
+        if (err) {
+            console.error("❌ Database connection failed:", err.message);
+            return res.status(500).json({ error: "Database connection failed", details: err.message });
+        } else {
+            console.log("✅ Database connected");
+            res.status(200).json({ message: "Database connection established" });
+        }
+    });
+});
+
 
 
 
@@ -52,8 +62,8 @@ const transporter = nodemailer.createTransport({
     port: 465, // ✅ Use port 465 for SSL (or 587 for TLS)
     secure: true, // ✅ Use true for SSL (false for TLS)
     auth: {
-        user: "", // ✅ Replace with your Gmail
-        pass: "" // ✅ Use your 16-character Google App Password
+        user: process.env.SMTP_EMAIL,
+        pass: process.env.SMTP_PASSWORD, // ✅ Use your 16-character Google App Password
     },
 });
 

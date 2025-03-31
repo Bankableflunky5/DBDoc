@@ -12,9 +12,10 @@ export default function HomePage() {
     setLoading(true);
 
     try {
-      const openFormResponse = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/open-form', {
+      const openFormResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/open-form`, {
         method: 'POST',
       });
+      
 
       if (!openFormResponse.ok) {
         console.error('❌ Error opening database connection');
@@ -23,7 +24,7 @@ export default function HomePage() {
 
       console.log("✅ Form opened successfully, now reserving Job ID...");
 
-      const reserveJobResponse = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/reserve-job', {
+      const reserveJobResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/reserve-job`, {
         method: 'POST',
       });
 

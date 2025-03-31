@@ -424,7 +424,7 @@ class DatabaseApp(QMainWindow):
 
 
           # Specify the SSL certificate paths (adjust to your paths)
-        #ssl_ca = "pC:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
+        #ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
         #ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
         #ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
 
