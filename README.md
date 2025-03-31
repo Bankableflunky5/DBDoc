@@ -30,7 +30,7 @@ DBDoc is designed to streamline the daily workflow of repair shops by offering:
 - 📊 **Real-Time Data Insights**
 - 💾 **Scheduled Backups & Restoration**
 - 🗂️ **Custom Table Management**
-- 🔐 **Secure Login & Role-Based Access (Planned)**
+- 🔐 **Secure Login**
 
 It's built with an emphasis on usability, aesthetic polish, and real-world repair shop needs.
 
@@ -83,11 +83,21 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - `PyQt5`, `mariadb`, `pymysql`, `pandas`, `openpyxl`, `matplotlib`, `schedule`
 - A running MariaDB or MySQL database
 - SSL certs for secure connection (`.crt`, `.key`)
+- node.js
 
-### 🔧 Setup Notes
+---
 
-- Update the SSL cert paths in the login method:
-  ```python
-  ssl_ca = "C:/ssl/mariadb/mariadb.crt"
-  ssl_cert = "C:/ssl/mariadb/mariadb.crt"
-  ssl_key = "C:/ssl/mariadb/mariadb.key"
+## 🛣️ Roadmap / Planned Updates
+
+> Short-term development goals for improving the project:
+
+- [ ] **Introduce more environment variables** in the React app  
+  Move away from hardcoded values and centralize config for flexibility and cleaner deployment.
+
+- [ ] **Add data visualizations** to the PyQt5 desktop interface  
+  Charts, graphs, or dashboards to give technicians/admins insight into business trends (e.g., Busy time of day, who is booking in the most jobs).
+
+- [ ] **Refactor the PyQt5 "god file"** into multiple modules  
+  Improve maintainability and readability by splitting the large monolithic script into separate components.
+
+

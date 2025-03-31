@@ -26,18 +26,21 @@ It connects directly to the MariaDB database over a secure SSL connection.
 - **Windows OS** (tested)
 - Packages:
   ```bash
-  pip install PyQt5 mariadb pandas openpyxl matplotlib schedule fpdf
-'''
+  pip install PyQt5 mariadb pandas openpyxl matplotlib schedule
+  ```
 ---
 
 ## 🔒 SSL Config
 To enable SSL database connections, update the login() method:
+Uncomment and configure these lines to secure your DB connection.
 ```bash
 ssl_ca = "C:/ssl/mariadb/ca.crt"
 ssl_cert = "C:/ssl/mariadb/client.crt"
 ssl_key = "C:/ssl/mariadb/client.key"
 ```
 Uncomment and configure these lines to secure your DB connection.
+---
+
 ---
 ## 💼 Settings File
 App config is saved in settings.json after you hit 💾 Save Settings.
