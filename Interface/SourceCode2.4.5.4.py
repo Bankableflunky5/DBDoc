@@ -1236,6 +1236,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
 
+    
     def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""
         try:
