@@ -54,7 +54,7 @@ NEXT_PUBLIC_API_URL=http://<your-local-IP>:5000
 Replace <your-local-IP> with the IP address of the machine running the backend server.
 Example: http://192.168.0.42:5000
 ```
-
+### 3. Configure the terms and conditions to your preference
 ---
 ## 🔄️ Page Flow
 1. Homepage  
