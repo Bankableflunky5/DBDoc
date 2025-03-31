@@ -63,12 +63,12 @@ SMTP_PASSWORD=your_app_password
         user: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
-        ssl: process.env.DB_SSL_CA ? {
-            ca: fs.readFileSync(process.env.DB_SSL_CA),
-            cert: fs.readFileSync(process.env.DB_SSL_CERT),
-            key: fs.readFileSync(process.env.DB_SSL_KEY),
-            rejectUnauthorized: false,
-        } : undefined
+        #ssl: process.env.DB_SSL_CA ? {
+        #    ca: fs.readFileSync(process.env.DB_SSL_CA),
+        #    cert: fs.readFileSync(process.env.DB_SSL_CERT),
+        #    key: fs.readFileSync(process.env.DB_SSL_KEY),
+        #    rejectUnauthorized: false,
+     #   } : undefined
     });
 ```
 ---
