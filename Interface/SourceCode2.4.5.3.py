@@ -424,9 +424,9 @@ class DatabaseApp(QMainWindow):
 
 
           # Specify the SSL certificate paths (adjust to your paths)
-        #ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
-        #ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
-        #ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
+        ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
+        ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
+        ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
 
         print(f"🔍 Debug (Before MessageBox) - Database: {database}, Host: {host}")  # ✅ Debug print
 
@@ -441,9 +441,9 @@ class DatabaseApp(QMainWindow):
                 password=password,
                 host=host,
                 database=database,
-                #ssl_ca=ssl_ca,
-                #ssl_cert=ssl_cert,
-                #ssl_key=ssl_key
+                ssl_ca=ssl_ca,
+                ssl_cert=ssl_cert,
+                ssl_key=ssl_key
         
             )
             self.cursor = self.conn.cursor()
@@ -3977,12 +3977,6 @@ class DatabaseApp(QMainWindow):
         layout.addLayout(button_layout)
         self.dashboard_dialog.setLayout(layout)
         self.dashboard_dialog.exec_()
-
-    def setup_auto_refresh(self, interval=5): #UI - (MAYBE REMOVE)
-        """Sets up auto-refresh for the dashboard every X minutes."""
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.dashboard_page)
-        self.timer.start(interval * 60 * 1000)  # Convert minutes to milliseconds
 
     def reset_window_size(self): # UI
         """Reset the window size and return to main menu."""
