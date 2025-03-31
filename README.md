@@ -65,7 +65,7 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 
 ## 🧠 Technologies Used
 
-- **Python 3.x**
+- **Python 3.8+**
 - **PyQt5** – GUI
 - **MariaDB / MySQL** – Database layer
 - **pandas / openpyxl / matplotlib** – Data handling & visualizations
