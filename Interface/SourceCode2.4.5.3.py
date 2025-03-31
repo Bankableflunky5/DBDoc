@@ -42,7 +42,7 @@ from tkinter.simpledialog import askstring
 
 
 
-def handle_db_error(error, context="Database Error"):
+def handle_db_error(error, context="Database Error"): #ERROR_UTILS
     """
     Handles database errors by logging them and showing a user-friendly message.
     """
@@ -56,13 +56,13 @@ def handle_db_error(error, context="Database Error"):
     )
 
 # Configure logging
-logging.basicConfig(
+logging.basicConfig( #ERROR_UTILS
     filename="app_errors.log",
     level=logging.ERROR,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-def log_error(error_message):
+def log_error(error_message): #ERROR_UTILS
     """Log an error and display it in a custom-styled QMessageBox."""
     logging.error(error_message)
 
@@ -81,7 +81,7 @@ def log_error(error_message):
 
     msg.exec_()
 
-class SplashScreen(QSplashScreen):
+class SplashScreen(QSplashScreen): #UI
     """ Splash Screen with a progress bar """
 
     def __init__(self):
@@ -116,7 +116,7 @@ class SplashScreen(QSplashScreen):
         """ Update the progress bar """
         self.progress_bar.setValue(value)
 
-class InitializationThread(QThread):
+class InitializationThread(QThread): #UI
     """ Simulates application initialization with a progress signal. """
     progress = pyqtSignal(int)
 
@@ -131,7 +131,7 @@ class DatabaseApp(QMainWindow):
     # Path to save the JSON configuration for the backup schedule
     SCHEDULE_FILE_PATH = "backup_schedule.json"
 
-    def __init__(self):
+    def __init__(self): #MAIN
         super().__init__()
         self.load_schedule_on_startup() 
         self.is_refreshing = False  # Flag to track whether refresh is in progress
@@ -160,14 +160,14 @@ class DatabaseApp(QMainWindow):
         self.central_widget.addWidget(self.login_page)
         self.central_widget.addWidget(self.settings_page)
 
-    def load_settings(self):
+    def load_settings(self): #FILE_OPS
         """Loads the database settings from a JSON file."""
         if os.path.exists(self.SETTINGS_FILE):
             with open(self.SETTINGS_FILE, "r") as file:
                 return json.load(file)
         return {"host": "localhost", "database": ""}
 
-    def save_settings(self):
+    def save_settings(self): #UI + FILE_OPS
         """Save settings from the settings page into a JSON file."""
         try:
             self.database_config["password"] = self.password_entry.text()
@@ -183,7 +183,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
 
-    def apply_button_hover_animation(self, button):
+    def apply_button_hover_animation(self, button): #UI
         """Applies a hover animation effect to a QPushButton."""
         original_width = button.sizeHint().width()
         animation = QPropertyAnimation(button, QByteArray(b"minimumWidth"))
@@ -203,7 +203,7 @@ class DatabaseApp(QMainWindow):
         button.enterEvent = on_hover
         button.leaveEvent = on_leave
 
-    def create_settings_page(self):
+    def create_settings_page(self): #UI
         """Creates a modern settings page UI."""
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -281,7 +281,7 @@ class DatabaseApp(QMainWindow):
 
         return page
 
-    def create_login_page(self):
+    def create_login_page(self): #UI
         """Creates a modern, visually appealing login UI with improved layout and animations."""
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -415,7 +415,7 @@ class DatabaseApp(QMainWindow):
 
         return page
 
-    def login(self):
+    def login(self):#UI +DATA_ACCESSS
         """Handles the login process securely."""
         username = self.username_entry.text()
         password = self.password_entry.text()
@@ -466,12 +466,12 @@ class DatabaseApp(QMainWindow):
             # ✅ Clear the Password Field Even on Failure
             self.password_entry.clear()
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event): #UI
         """Handles key press events for the login window."""
         if event.key() == Qt.Key_Return:  # Check if the "Enter" key is pressed
             self.login()  # Call the login method
 
-    def main_menu_page(self):
+    def main_menu_page(self):#UI
         """Creates and displays the main menu UI with improved layout, centered text, and aligned emojis."""
 
         # ✅ If the menu page already exists, switch to it
@@ -582,7 +582,7 @@ class DatabaseApp(QMainWindow):
         self.central_widget.addWidget(self.main_menu)
         self.central_widget.setCurrentWidget(self.main_menu)  # ✅ Switch to main menu
 
-    def logout(self):
+    def logout(self):#UI + DATA_ACCESS
         """Logs out the user and resets the UI to prevent issues."""
         
         confirm = QMessageBox.question(
@@ -609,7 +609,7 @@ class DatabaseApp(QMainWindow):
 
             QMessageBox.information(self, "Logged Out", "✅ You have been successfully logged out.")
 
-    def options_page(self):
+    def options_page(self):#UI
         """Creates a visually enhanced settings/options page in PyQt."""
 
         # Create the settings page widget
@@ -694,7 +694,7 @@ class DatabaseApp(QMainWindow):
         self.central_widget.addWidget(self.settings_page)
         self.central_widget.setCurrentWidget(self.settings_page)
 
-    def open_scheduling_options_dialog(self):
+    def open_scheduling_options_dialog(self):#UI
         """Open a dialog with options related to backup scheduling with improved UI."""
         
         # Create the dialog
@@ -763,7 +763,7 @@ class DatabaseApp(QMainWindow):
         scheduling_dialog.setLayout(layout)
         scheduling_dialog.exec_()
 
-    def view_current_schedule(self):
+    def view_current_schedule(self): #FILE_OPS
         """Displays the current backup schedule to the user."""
         schedule_data = self.load_schedule_from_json()
 
@@ -777,7 +777,7 @@ class DatabaseApp(QMainWindow):
         else:
             QMessageBox.information(self, "No Schedule", "No backup schedule is set.")
 
-    def clear_current_schedule(self):
+    def clear_current_schedule(self): #FILE_OPS
         """Clears the current backup schedule."""
         schedule_data = self.load_schedule_from_json()
 
@@ -791,7 +791,7 @@ class DatabaseApp(QMainWindow):
         else:
             QMessageBox.information(self, "No Schedule", "No backup schedule to clear.")
 
-    def open_schedule_backup_dialog(self):
+    def open_schedule_backup_dialog(self): #UI
         """Open a dialog to allow the user to schedule backups with a dark-themed UI."""
         
         # Create the dialog
@@ -900,7 +900,7 @@ class DatabaseApp(QMainWindow):
         schedule_dialog.setLayout(layout)
         schedule_dialog.exec_()
 
-    def save_backup_schedule(self, interval_combo, time_entry, backup_directory, dialog):
+    def save_backup_schedule(self, interval_combo, time_entry, backup_directory, dialog): #FILE_OPS
         """Save the selected backup schedule and apply it."""
         interval = interval_combo.currentText()
         time_of_day = time_entry.text()
@@ -933,7 +933,7 @@ class DatabaseApp(QMainWindow):
         dialog.accept()  # Close the dialog
         QMessageBox.information(self, "Success", "Backup schedule saved successfully.")
 
-    def load_schedule_on_startup(self):
+    def load_schedule_on_startup(self): #FILE_OPS
         """Load the backup schedule from the JSON file and apply it on startup."""
         schedule_data = self.load_schedule_from_json()
         if schedule_data:
@@ -949,7 +949,7 @@ class DatabaseApp(QMainWindow):
                 minutes = int(interval.split()[1])
                 self.schedule_backup(interval=f"every {minutes} minutes", backup_directory=backup_directory)
 
-    def load_schedule_from_json(self):
+    def load_schedule_from_json(self): #FILE_OPS
         """Load the backup schedule from a JSON file."""
         if os.path.exists(self.SCHEDULE_FILE_PATH):
             try:
@@ -960,7 +960,7 @@ class DatabaseApp(QMainWindow):
                 QMessageBox.critical(self, "Error", f"Failed to load backup schedule: {e}")
         return None
 
-    def save_schedule_to_json(self, schedule_data):
+    def save_schedule_to_json(self, schedule_data): #FILE_OPS
         """Save the backup schedule to a JSON file."""
         try:
             with open(self.SCHEDULE_FILE_PATH, "w") as json_file:
@@ -969,7 +969,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save backup schedule: {e}")
 
-    def schedule_backup(self, interval="daily", time_of_day="00:00", backup_directory=None):
+    def schedule_backup(self, interval="daily", time_of_day="00:00", backup_directory=None): #FILE_OPS
         """Schedules the backup to run at a specific time or interval."""
         if interval == "daily":
             schedule.every().day.at(time_of_day).do(self.trigger_backup, backup_directory)
@@ -986,13 +986,13 @@ class DatabaseApp(QMainWindow):
         thread.daemon = True
         thread.start()
 
-    def run_scheduled_backups(self):
+    def run_scheduled_backups(self): #FILE_OPS
         """Run the scheduled backups in the background."""
         while True:
             schedule.run_pending()
             time.sleep(1)
 
-    def trigger_backup(self, backup_directory):
+    def trigger_backup(self, backup_directory): #FILE_OPS -CHECK LOGIC
         """Trigger the backup process at the scheduled time."""
         if not backup_directory:
             
@@ -1011,7 +1011,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             print("oh dear")
     
-    def change_db_password(self):
+    def change_db_password(self): #DB_UTILS
         """Prompts the user to enter their old password, a new password, and confirm the new password before updating it."""
         
         # Ensure database configuration exists
@@ -1099,7 +1099,7 @@ class DatabaseApp(QMainWindow):
             if cursor:
                 cursor.close()
         
-    def restore_database(self):
+    def restore_database(self): #FILE_OPS (MAYBE UTILS) -REMOVE TKINTER
         # Ask the user to provide a name for the new database
         db_name = askstring("Database Name", "Enter the name of the new database:")
         if not db_name:
@@ -1153,7 +1153,7 @@ class DatabaseApp(QMainWindow):
             log_error(f"An unexpected error occurred: {e}")
             messagebox.showerror("Error", f"An unexpected error occurred: {e}")
 
-    def export_database_to_excel(self):
+    def export_database_to_excel(self): #FILE_OPS - REMOVE TKINTER
         file_path = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
@@ -1181,7 +1181,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             messagebox.showerror("Error", f"An unexpected error occurred: {e}")
 
-    def backup_database(self):
+    def backup_database(self): #FILE_OPS (MAYBE UTILS) - REMOVE TKINTER
         directory = filedialog.askdirectory()
         if not directory:
             return
@@ -1226,7 +1226,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to back up database: {e}")
 
-    def view_tables(self):
+    def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""
         try:
             self.cursor.execute("SHOW TABLES;")
@@ -1317,7 +1317,7 @@ class DatabaseApp(QMainWindow):
         except mariadb.Error as e:
             QMessageBox.critical(None, "Error", f"Failed to retrieve tables: {e}")
 
-    def fetch_data(self, table_name, limit=50, offset=0):
+    def fetch_data(self, table_name, limit=50, offset=0): #DATA_ACCESS
                 """Fetch data in batches from the database."""
                 try:
                     query = f"SELECT * FROM {table_name} ORDER BY 1 DESC LIMIT %s OFFSET %s"
@@ -1327,7 +1327,7 @@ class DatabaseApp(QMainWindow):
                     print(f"Database Error: {e}")
                     return []
 
-    def populate_table(self, data):
+    def populate_table(self, data): #UI
         """Populates the table with fresh data without triggering unnecessary updates."""
 
         if not hasattr(self, "table_widget"):
@@ -1378,7 +1378,7 @@ class DatabaseApp(QMainWindow):
 
         self.table_widget.blockSignals(False)  # ✅ Allow actual edits to be detected
 
-    def update_table_offset(self, change):
+    def update_table_offset(self, change): #UI + DATA_ACCESS
         """Handles pagination while ensuring dropdowns remain intact and row count is correct."""
         old_offset = self.table_offset
         self.table_offset += change
@@ -1416,7 +1416,7 @@ class DatabaseApp(QMainWindow):
         self.prev_button.setEnabled(self.table_offset > 0)  # Disable if on first page
         self.next_button.setEnabled(total_rows == self.table_limit)  # Disable if no more records
     
-    def load_table(self, table_name, table_offset=None):
+    def load_table(self, table_name, table_offset=None): #UI + DATA_ACCESS
         """Loads data into the table and ensures dropdowns persist correctly, while also storing primary key correctly."""
         self.table_name = table_name
         if table_offset is not None:
@@ -1505,7 +1505,7 @@ class DatabaseApp(QMainWindow):
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_widget.verticalHeader().setVisible(False)
 
-    def update_database(self, item):
+    def update_database(self, item): #UI + DATA_ACCESS
         """Ensures only valid records are updated, and deleted rows are ignored."""
         self.table_widget.blockSignals(True)  # Prevent infinite recursion
 
@@ -1644,21 +1644,21 @@ class DatabaseApp(QMainWindow):
         finally:
             self.table_widget.blockSignals(False)  # Allow further edits
 
-    def refresh_page(self):
+    def refresh_page(self): #UI
         """Reloads the current page while keeping the dropdowns intact."""
         self.table_widget.blockSignals(True)  # Prevents unwanted table updates
         self.table_widget.setRowCount(0)  # Fully clears rows before repopulating
         self.load_table(self.table_name, self.table_offset)  # Load correct page
         self.table_widget.blockSignals(False)  # Re-enable signals
 
-    def eventFilter(self, source, event):
+    def eventFilter(self, source, event): #UI
         # Check if the source is a QComboBox and the event type is a WheelEvent
         if isinstance(source, QComboBox) and event.type() == QEvent.Wheel:
             # Block the scroll event
             return True  # This will block the wheel event, preventing it from affecting the combo box
         return super().eventFilter(source, event)  # Let the base class handle other events
 
-    def update_status_and_database(self, row_idx, new_status):
+    def update_status_and_database(self, row_idx, new_status): #UI + DATA_ACCESS
         """Handles the change of status and updates the database."""
         try:
             # Get the primary key of the row
@@ -1700,7 +1700,7 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             print(f"❌ ERROR updating status in database: {e}")
    
-    def view_table_data(self, table_name):
+    def view_table_data(self, table_name): #UI + DATA_ACCESS
         """Displays and manages data in a selected table with modern UI, search, inline editing, and pagination."""
 
         try:
@@ -1979,7 +1979,7 @@ class DatabaseApp(QMainWindow):
         except mariadb.Error as e:
             QMessageBox.critical(None, "Error", f"Failed to retrieve data from {table_name}: {e}")
 
-    def search_table(self, column, search_text):
+    def search_table(self, column, search_text): #UI + DATA_ACCESS
         """Search for records in the selected table without pagination restrictions."""
 
         if not search_text.strip():
@@ -2003,7 +2003,7 @@ class DatabaseApp(QMainWindow):
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"❌ Database Error: {e}")
 
-    def refresh_table(self):
+    def refresh_table(self): #UI + DATA_ACCESS
         """Refresh the table after clearing and fetching fresh data from the database."""
         
         if self.is_refreshing:
@@ -2040,7 +2040,7 @@ class DatabaseApp(QMainWindow):
             self.is_refreshing = False
             self.refresh_button.setEnabled(True)
 
-    def add_record(self, table_name, columns, table_widget):
+    def add_record(self, table_name, columns, table_widget): #UI + DATA_ACCESS
         """Opens a dark-themed dialog to add a new record to the specified table."""
 
         # Fetch column types from the database
@@ -2188,7 +2188,7 @@ class DatabaseApp(QMainWindow):
         # Show the dialog
         add_window.exec_()
 
-    def delete_record(self, table_name, table_widget, primary_key_column):
+    def delete_record(self, table_name, table_widget, primary_key_column): #UI + DATA_ACCESS
         """Deletes a selected record from the table safely with error handling."""
         
         global is_deletion
@@ -2252,7 +2252,7 @@ class DatabaseApp(QMainWindow):
             finally:
                 is_deletion = False  # Reset flag
 
-    def view_notes(self, job_id=None):
+    def view_notes(self, job_id=None): #UI + DATA_ACCESS
         """Displays and edits job notes for a given Job ID."""
         
         # ✅ Step 1: If job_id is None, ask user for input
@@ -3235,7 +3235,7 @@ class DatabaseApp(QMainWindow):
         edit_dialog.setLayout(main_layout)
         edit_dialog.exec_()
 
-    def edit_selected_job(self):
+    def edit_selected_job(self): #UI
         """Gets the selected job's ID and opens the Edit Notes dialog."""
         selected_items = self.table_widget.selectedItems()
         
@@ -3257,7 +3257,7 @@ class DatabaseApp(QMainWindow):
         # ✅ Call view_notes with the selected Job ID
         self.view_notes(job_id)
 
-    def ask_for_job_id(self):
+    def ask_for_job_id(self): #UI
         """Prompts the user for a Job ID and calls view_notes with it."""
         
         job_id, ok = QInputDialog.getText(None, "🔍 Search Job", "Enter Job ID:")
@@ -3275,7 +3275,7 @@ class DatabaseApp(QMainWindow):
         # ✅ Call `view_notes` with the validated Job ID
         self.view_notes(job_id)
 
-    def Customer_report(self):
+    def Customer_report(self): #UI + DATA_ACCESS
         # Step 1: Ask for Job ID
         job_id, ok = QInputDialog.getText(self, "Search Job", "Enter Job ID:")
         
@@ -3420,7 +3420,7 @@ class DatabaseApp(QMainWindow):
         customer_window.setLayout(layout)
         customer_window.exec_()
 
-    def run_query(self):
+    def run_query(self): #UI + DATA_ACCESS
         """Creates a Query Execution Window for running custom SQL queries."""
 
         # Create a new dialog window
@@ -3570,10 +3570,10 @@ class DatabaseApp(QMainWindow):
         query_window.setLayout(layout)
         query_window.exec_()
 
-    def exit_app(self):
+    def exit_app(self): # UI
         self.close()
 
-    def dashboard_page(self):
+    def dashboard_page(self): #UI + DATA_ACCESS
         """Displays the dashboard with income prediction and new features."""
         
         self.dashboard_dialog = QDialog(self)
@@ -3978,18 +3978,18 @@ class DatabaseApp(QMainWindow):
         self.dashboard_dialog.setLayout(layout)
         self.dashboard_dialog.exec_()
 
-    def setup_auto_refresh(self, interval=5):
+    def setup_auto_refresh(self, interval=5): #UI - (MAYBE REMOVE)
         """Sets up auto-refresh for the dashboard every X minutes."""
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.dashboard_page)
         self.timer.start(interval * 60 * 1000)  # Convert minutes to milliseconds
 
-    def reset_window_size(self):
+    def reset_window_size(self): # UI
         """Reset the window size and return to main menu."""
         self.dashboard_dialog.close()
         self.main_menu_page()
 
-    def handle_db_error(error, context="Database Error"):
+    def handle_db_error(error, context="Database Error"): #ERROR_UTILS
         """Handles database-related errors in a centralized way."""
         error_message = f"{context}: {error}"
         logging.error(error_message)
@@ -3997,12 +3997,12 @@ class DatabaseApp(QMainWindow):
         QMessageBox.critical(None, "Database Error", f"⚠ An error occurred: {error}\nPlease check the logs for details.")
 
 
-def log_error(error_message):
+def log_error(error_message): #ERROR_UTILS
     """Logs errors to a file."""
     with open("error_log.txt", "a") as log_file:
         log_file.write(error_message + "\n")
 
-if __name__ == "__main__":
+if __name__ == "__main__": #MAIN
     try:
         app = QApplication(sys.argv)
         
