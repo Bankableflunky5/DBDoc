@@ -34,9 +34,6 @@ from PyQt5.QtWidgets import (
     QFileDialog, QListWidget, QListWidgetItem, QStyle, QAction, QMessageBox
 )
 
-# Tkinter (for file dialogs, if needed)
-from tkinter import filedialog, messagebox
-from tkinter.simpledialog import askstring
 
 
 
@@ -1099,20 +1096,22 @@ class DatabaseApp(QMainWindow):
             if cursor:
                 cursor.close()
         
-    def restore_database(self): #FILE_OPS (MAYBE UTILS) -REMOVE TKINTER
-        # Ask the user to provide a name for the new database
-        db_name = askstring("Database Name", "Enter the name of the new database:")
-        if not db_name:
-            messagebox.showwarning("Input Error", "Database name cannot be empty.")
+    def restore_database(self): #FILE_OPS (Maybe Utils)
+        # Ask the user for the new database name
+        db_name, ok = QInputDialog.getText(self, "Database Name", "Enter the name of the new database:")
+        if not ok or not db_name:
+            QMessageBox.warning(self, "Input Error", "Database name cannot be empty.")
             return
 
         # Ask the user to select a backup file
-        backup_file = filedialog.askopenfilename(
-            title="Select Backup File",
-            filetypes=[("SQL Files", "*.sql"), ("All Files", "*.*")]
+        backup_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Backup File",
+            "",
+            "SQL Files (*.sql);;All Files (*)"
         )
         if not backup_file:
-            messagebox.showwarning("Input Error", "No backup file selected.")
+            QMessageBox.warning(self, "Input Error", "No backup file selected.")
             return
 
         try:
@@ -1122,7 +1121,7 @@ class DatabaseApp(QMainWindow):
             
             # Create the new database
             self.cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name};")
-            messagebox.showinfo("Success", f"Database '{db_name}' created successfully.")
+            QMessageBox.information(self, "Success", f"Database '{db_name}' created successfully.")
 
             # Use the newly created database
             self.cursor.execute(f"USE {db_name};")
@@ -1133,35 +1132,41 @@ class DatabaseApp(QMainWindow):
 
             # Split SQL commands by semicolon and execute them
             for command in sql_commands.split(";"):
-                command = command.strip()  # Remove extra whitespace around the command
+                command = command.strip()  # Remove extra whitespace
                 if command:  # Only execute non-empty commands
                     try:
-                        print(f"Executing: {command}")  # Debug print to check the current command
+                        print(f"Executing: {command}")  # Debug print
                         self.cursor.execute(command)
                     except mariadb.Error as e:
                         log_error(f"Failed to execute command: {command}. Error: {e}")
-                        continue  # Skip the failed command, continue with the next one
+                        continue  # Skip the failed command
 
             # Commit the changes to the database
             self.conn.commit()
-            messagebox.showinfo("Success", f"Database created successfully to '{db_name}'.")
+            QMessageBox.information(self, "Success", f"Database restored successfully to '{db_name}'.")
 
         except mariadb.Error as e:
-            log_error(f"Failed to create database to '{db_name}': {e}")
-            messagebox.showerror("Error", f"Failed to restore database. Error: {e}")
+            log_error(f"Failed to create database '{db_name}': {e}")
+            QMessageBox.critical(self, "Error", f"Failed to restore database. Error: {e}")
         except Exception as e:
             log_error(f"An unexpected error occurred: {e}")
-            messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
 
-    def export_database_to_excel(self): #FILE_OPS - REMOVE TKINTER
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".xlsx",
-            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+    def export_database_to_excel(self): #FILE_OPS
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Database Export",
+            "",
+            "Excel files (*.xlsx);;All files (*)"
         )
         if not file_path:
             return
 
         try:
+            # Ensure the file has the correct extension
+            if not file_path.endswith(".xlsx"):
+                file_path += ".xlsx"
+
             # Get all table names
             self.cursor.execute("SHOW TABLES;")
             tables = [table[0] for table in self.cursor.fetchall()]
@@ -1175,14 +1180,14 @@ class DatabaseApp(QMainWindow):
                     df = pd.DataFrame(data, columns=columns)
                     df.to_excel(writer, sheet_name=table, index=False)
 
-            messagebox.showinfo("Success", f"Database exported successfully to {file_path}.")
+            QMessageBox.information(self, "Success", f"Database exported successfully to {file_path}.")
         except mariadb.Error as e:
-            messagebox.showerror("Error", f"Failed to export database: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to export database: {e}")
         except Exception as e:
-            messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
 
-    def backup_database(self): #FILE_OPS (MAYBE UTILS) - REMOVE TKINTER
-        directory = filedialog.askdirectory()
+    def backup_database(self): #FILE_OPS (MAYBE UTILS)
+        directory = QFileDialog.getExistingDirectory(self, "Select Backup Directory")
         if not directory:
             return
 
@@ -1222,9 +1227,9 @@ class DatabaseApp(QMainWindow):
                 # Write commands to re-enable foreign key checks
                 f.write("SET FOREIGN_KEY_CHECKS = 1;\n")
 
-            messagebox.showinfo("Success", f"Database backup saved to {backup_file}.")
+            QMessageBox.information(self, "Success", f"Database backup saved to {backup_file}.")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to back up database: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to back up database: {e}")
 
     def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""
