@@ -35,7 +35,7 @@ node backend.js
 
 ---
 ## 🌐 Environment variables
-Create a .env file with 
+Create a .env file in root of backend with 
 ```bash
 DB_HOST=your_host
 DB_USER=your_user
