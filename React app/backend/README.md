@@ -34,6 +34,24 @@ node backend.js
 ```
 
 ---
+## 🌐 Environment variables
+Create a .env file with 
+```bash
+DB_HOST=your_host
+DB_USER=your_user
+DB_PASSWORD=your_password
+DB_NAME=database_name
+DB_SSL_CA=pathto/mariadb.crt
+DB_SSL_CERT=pathto/mariadb.crt  
+DB_SSL_KEY=pathto/mariadb.key  
+
+SMTP_EMAIL=your_email_username
+SMTP_PASSWORD=your_app_password
+
+```
+---
+
+
 
 ## 🔐 SSL Configuration
 
