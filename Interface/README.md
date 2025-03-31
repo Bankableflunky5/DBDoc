@@ -60,6 +60,7 @@ App config is saved in settings.json after you hit 💾 Save Settings.
 
 ## 🛣️ Planned Upgrades
 - Modular codebase with multiple files/classes
+- SSL routes stored in environment variables
 - More Visualizations
 - Role-based access
 - Linux/macOS support
