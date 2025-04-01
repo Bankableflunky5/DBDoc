@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 import time
 from threading import Thread
+import math
 
 # Database Libraries
 import mariadb
@@ -1236,7 +1237,6 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
 
-    
     def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""
         try:
@@ -3659,9 +3659,33 @@ class DatabaseApp(QMainWindow):
                     fig, ax = plt.subplots(figsize=(8, 4))
                     ax.barh(issues, counts, color="orange")
                     ax.set_xlabel("Count")
-                    ax.set_ylabel("Device Issue")
+                    ax.set_ylabel("Device Brand")
                     add_chart_to_layout(fig, "Most Frequent Device Brands")
 
+            ### DEVICE AND ISSUE TRENDS ###
+            self.cursor.execute("""
+                SELECT DeviceType, COUNT(*) 
+                FROM JOBS
+                GROUP BY DeviceType
+                ORDER BY COUNT(*) DESC
+                LIMIT 10;
+            """)
+            results = self.cursor.fetchall()
+            if results:
+                # Filter out None values from device types or job counts
+                results = [(device, count) for device, count in results if device is not None and count is not None]
+                if results:
+                    device_types, job_counts = zip(*results)
+                    fig, ax = plt.subplots(figsize=(8, 4))
+                    ax.bar(device_types, job_counts, color="orange")
+                    ax.set_xlabel("Device Type")
+                    ax.set_ylabel("Job Count")
+                    ax.set_title("Most Common Device Types")
+                    ax.tick_params(axis='x', rotation=45)
+                    plt.subplots_adjust(bottom=0.3)  # Increases space at the bottom
+                    add_chart_to_layout(fig)
+
+            
             ### JOB STATUS DISTRIBUTION ###
             self.cursor.execute("SELECT Status, COUNT(*) FROM JOBS GROUP BY Status;")
             results = self.cursor.fetchall()
@@ -3702,27 +3726,7 @@ class DatabaseApp(QMainWindow):
                     add_chart_to_layout(fig)
 
 
-            ### DEVICE AND ISSUE TRENDS ###
-            self.cursor.execute("""
-                SELECT DeviceType, COUNT(*) 
-                FROM JOBS
-                GROUP BY DeviceType
-                ORDER BY COUNT(*) DESC
-                LIMIT 10;
-            """)
-            results = self.cursor.fetchall()
-            if results:
-                # Filter out None values from device types or job counts
-                results = [(device, count) for device, count in results if device is not None and count is not None]
-                if results:
-                    device_types, job_counts = zip(*results)
-                    fig, ax = plt.subplots(figsize=(8, 4))
-                    ax.bar(device_types, job_counts, color="orange")
-                    ax.set_xlabel("Device Type")
-                    ax.set_ylabel("Job Count")
-                    ax.set_title("Most Common Device Types")
-                    ax.tick_params(axis='x', rotation=45)
-                    add_chart_to_layout(fig)
+            
 
             self.cursor.execute("""
                 SELECT Issue, COUNT(*) 
@@ -3924,6 +3928,78 @@ class DatabaseApp(QMainWindow):
                         plt.tight_layout()
                         add_chart_to_layout(fig1)
 
+                
+                # Step 1: Extract the time of day (in minutes) from the startdate for all jobs
+                # Step 1: Extract the time of day (in minutes) from the startdate for all jobs
+                self.cursor.execute("""
+                    SELECT TIMESTAMPDIFF(SECOND, DATE(StartDate), StartDate)
+                    FROM JOBS
+                    WHERE StartDate IS NOT NULL;
+                """)
+                times_in_seconds = [row[0] for row in self.cursor.fetchall() if row[0] is not None]
+
+                # Convert to minutes for easier readability
+                times_in_minutes = [time / 60 for time in times_in_seconds]
+
+                # Step 2: Plot the histogram of time distribution (overall)
+                fig, ax = plt.subplots(figsize=(10, 6))
+                counts, bins, patches = ax.hist(times_in_minutes, bins=24, color='orange', edgecolor='black')  # 24 bins for each hour
+                ax.set_xlabel('Time of Day (minutes from midnight)')
+                ax.set_ylabel('Number of Jobs')
+                ax.set_title('Overall Job Start Time Distribution')
+
+                # Format the x-axis labels to show time in HH:MM format
+                ax.set_xticks(range(0, 1440, 60))
+                ax.set_xticklabels([f'{i//60:02}:{i%60:02}' for i in range(0, 1440, 60)])
+
+                # Step 3: Calculate the overall average time of day (in minutes)
+                avg_time_minutes = sum(times_in_minutes) / len(times_in_minutes)
+
+                # Step 4: Add a vertical line for the average time
+                ax.axvline(avg_time_minutes, color='red', linestyle='dashed', linewidth=2, 
+                            label=f'Avg: {avg_time_minutes//60:02}:{avg_time_minutes%60:02} ({avg_time_minutes/60:.2f} hrs)')
+
+                # Step 5: Find the busiest time interval (bin with the maximum count)
+                max_count_bin_index = counts.argmax()  # Get the index of the bin with the most jobs
+                max_count_bin_start = bins[max_count_bin_index]
+                max_count_bin_end = bins[max_count_bin_index + 1]
+
+                # Label the busiest time period on the plot
+                ax.text(
+                    max_count_bin_start + (max_count_bin_end - max_count_bin_start) / 2,  # Position at the center of the bin
+                    counts[max_count_bin_index] + 1,  # Position a little above the highest bar
+                    f'Busiest: {int(max_count_bin_start // 60):02}:{int(max_count_bin_start % 60):02} - {int(max_count_bin_end // 60):02}:{int(max_count_bin_end % 60):02}',
+                    color='blue', ha='center', fontsize=10, fontweight='bold'
+                )
+
+                # Step 6: Add the average time label at the top of the graph
+                avg_time_hours = int(avg_time_minutes // 60)  # Hours part
+                avg_time_minutes_only = int(avg_time_minutes % 60)  # Minutes part
+
+                # Format the time as HH:MM
+                formatted_avg_time = f'{avg_time_hours:02}:{avg_time_minutes_only:02}'
+
+                # Add the label at the top of the graph
+                ax.text(
+                    avg_time_minutes,  # Position it near the average time vertical line
+                    counts.max() * 0.85,  # Place the label slightly below the top of the bars
+                    f'Avg Time: {formatted_avg_time}',  # Using the formatted time
+                    color='red', ha='center', fontsize=12, fontweight='bold'
+)
+
+                # Step 7: Adjust layout and add to your layout
+                plt.tight_layout()
+
+                # Assuming add_chart_to_layout is a function that takes in a matplotlib figure
+                add_chart_to_layout(fig)  # Adding the figure to your layout
+
+
+
+
+
+            
+
+
                 # Fetch the number of customers and jobs
                 self.cursor.execute("SELECT COUNT(*) FROM customers;")
                 customer_count = self.cursor.fetchone()[0]  # Fetch customer count
@@ -4048,3 +4124,5 @@ if __name__ == "__main__": #MAIN
 
 
 
+# I need one way for logging errors not lots of little ways and little files.
+# refactor the code
