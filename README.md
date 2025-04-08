@@ -99,4 +99,6 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - [ ] **Refactor the PyQt5 "god file"** into multiple modules  
   Improve maintainability and readability by splitting the large monolithic script into separate components.
 
+- [ ] **Add first time setup** to form to streamline creation of env and config files
+
 
