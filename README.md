@@ -94,8 +94,7 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - [x] **Introduce more environment variables** in the React app  
   Move away from hardcoded values and centralize config for flexibility and cleaner deployment.
 
-- [ ] **Add data visualizations** to the PyQt5 desktop interface  
-  Charts, graphs, or dashboards to give technicians/admins insight into business trends (e.g., Busy time of day, who is booking in the most jobs).
+- [] **Fix error logging in interface** Go through each function and properly define error logging.
 
 - [ ] **Refactor the PyQt5 "god file"** into multiple modules  
   Improve maintainability and readability by splitting the large monolithic script into separate components.
