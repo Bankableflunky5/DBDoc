@@ -94,7 +94,7 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 - [x] **Introduce more environment variables** in the React app  
   Move away from hardcoded values and centralize config for flexibility and cleaner deployment.
 
-- [] **Fix error logging in interface** Go through each function and properly define error logging.
+- [ ] **Fix error logging in interface** Go through each function and properly define error logging.
 
 - [ ] **Refactor the PyQt5 "god file"** into multiple modules  
   Improve maintainability and readability by splitting the large monolithic script into separate components.
