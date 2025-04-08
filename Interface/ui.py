@@ -9,6 +9,61 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFontMetrics
 from PyQt5.QtCore import Qt
 
+from PyQt5.QtWidgets import QComboBox, QTableWidgetItem, QMessageBox, QHeaderView
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QDialog
+
+
+def populate_table(table_widget, table_name, data):
+    """Populates the table with fresh data without triggering unnecessary updates."""
+
+    if not table_widget:
+        QMessageBox.critical(None, "Error", "Table widget not initialized.")
+        return
+
+    table_widget.blockSignals(True)  # ✅ Prevent unwanted `itemChanged` triggers
+
+    table_widget.clearContents()  # 🔥 Ensure old data is cleared
+    table_widget.setRowCount(len(data))  # ✅ Ensure all rows are displayed
+
+    # Detect status column index
+    status_column_index = None
+    if table_name == "jobs":
+        for col_idx in range(table_widget.columnCount()):
+            if table_widget.horizontalHeaderItem(col_idx).text().lower() == "status":
+                status_column_index = col_idx
+                break
+
+    for row_idx, row_data in enumerate(data):
+        for col_idx, value in enumerate(row_data):
+            if col_idx == status_column_index:  # ✅ Apply dropdown if it's the status column
+                status_combo = QComboBox()
+                status_combo.addItems(["Waiting for Parts", "In Progress", "Completed", "Picked Up"])
+                
+                value_str = str(value).strip()  # Keep original case
+                if value_str in ["Waiting for Parts", "In Progress", "Completed", "Picked Up"]:
+                    status_combo.setCurrentText(value_str)
+                else:
+                    status_combo.setCurrentText("In Progress")  # Default
+                
+                status_combo.setEditable(False)
+                status_combo.installEventFilter(table_widget)
+
+                table_widget.setCellWidget(row_idx, col_idx, status_combo)
+
+                status_combo.currentTextChanged.connect(
+                    lambda text, row=row_idx: update_status_and_database(row, text)
+                )
+
+            else:
+                item = QTableWidgetItem(str(value) if value is not None else "")
+                item.setData(Qt.UserRole, item.text())  # ✅ Store original value for change detection
+                table_widget.setItem(row_idx, col_idx, item)
+
+    table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    table_widget.verticalHeader().setVisible(False)
+
+    table_widget.blockSignals(False)  # ✅ Allow actual edits to be detected
 
 def create_settings_page(database_config, on_save, on_back):
     page = QWidget()

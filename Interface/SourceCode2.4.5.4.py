@@ -44,6 +44,9 @@ from ui import apply_button_hover_animation
 from ui import options_page
 from ui import main_menu_page
 from ui import keyPressEvent
+from splashscreen import SplashScreen
+from initthread import InitializationThread
+from ui import populate_table
 
 def handle_db_error(error, context="Database Error"): #ERROR_UTILS
     """
@@ -84,50 +87,6 @@ def log_error(error_message): #ERROR_UTILS
 
     msg.exec_()
 
-class SplashScreen(QSplashScreen): #UI
-    """ Splash Screen with a progress bar """
-
-    def __init__(self):
-        super().__init__()
-
-        # Load and scale a splash image (replace 'splash.png' with your own logo)
-        self.setPixmap(QPixmap("splash.png").scaled(500, 300, Qt.KeepAspectRatio))
-
-        # Progress Bar
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setGeometry(50, 250, 400, 20)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 2px solid #3A9EF5;
-                border-radius: 5px;
-                text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: #3A9EF5;
-                width: 10px;
-            }
-        """)
-
-        # Title and Progress Bar Layout
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(QLabel("<h2>🔄 Initializing...</h2>", self))
-        self.layout.addWidget(self.progress_bar)
-        self.setLayout(self.layout)
-
-    def update_progress(self, value):
-        """ Update the progress bar """
-        self.progress_bar.setValue(value)
-
-class InitializationThread(QThread): #UI
-    """ Simulates application initialization with a progress signal. """
-    progress = pyqtSignal(int)
-
-    def run(self):
-        """ Simulates the application startup process """
-        for i in range(101):  # Simulating a loading process
-            time.sleep(0.05)  # Simulate work being done
-            self.progress.emit(i)  # Emit progress value
 
 class DatabaseApp(QMainWindow):
     # Path to save the JSON configuration for the backup schedule
@@ -234,7 +193,7 @@ class DatabaseApp(QMainWindow):
             # ✅ Clear the Password Field Even on Failure
             self.password_entry.clear()
     
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event): #keep here
         keyPressEvent(self, event)  # Calls the one from ui.py
 
     def logout(self):  # UI + DATA_ACCESS
@@ -883,57 +842,6 @@ class DatabaseApp(QMainWindow):
                     print(f"Database Error: {e}")
                     return []
 
-    def populate_table(self, data): #UI
-        """Populates the table with fresh data without triggering unnecessary updates."""
-
-        if not hasattr(self, "table_widget"):
-            QMessageBox.critical(self, "Error", "Table widget not initialized.")
-            return
-
-        self.table_widget.blockSignals(True)  # ✅ Prevent unwanted `itemChanged` triggers
-
-        self.table_widget.clearContents()  # 🔥 Ensure old data is cleared
-        self.table_widget.setRowCount(len(data))  # ✅ Ensure all rows are displayed
-
-        # Detect status column index
-        status_column_index = None
-        if self.table_name == "jobs":
-            for col_idx in range(self.table_widget.columnCount()):
-                if self.table_widget.horizontalHeaderItem(col_idx).text().lower() == "status":
-                    status_column_index = col_idx
-                    break
-
-        for row_idx, row_data in enumerate(data):
-            for col_idx, value in enumerate(row_data):
-                if col_idx == status_column_index:  # ✅ Apply dropdown if it's the status column
-                    status_combo = QComboBox()
-                    status_combo.addItems(["Waiting for Parts", "In Progress", "Completed", "Picked Up"])
-                    
-                    value_str = str(value).strip()  # Keep original case
-                    if value_str in ["Waiting for Parts", "In Progress", "Completed", "Picked Up"]:
-                        status_combo.setCurrentText(value_str)
-                    else:
-                        status_combo.setCurrentText("In Progress")  # Default
-                    
-                    status_combo.setEditable(False)
-                    status_combo.installEventFilter(self)
-
-                    self.table_widget.setCellWidget(row_idx, col_idx, status_combo)
-
-                    status_combo.currentTextChanged.connect(
-                        lambda text, row=row_idx: self.update_status_and_database(row, text)
-                    )
-
-                else:
-                    item = QTableWidgetItem(str(value) if value is not None else "")
-                    item.setData(Qt.UserRole, item.text())  # ✅ Store original value for change detection
-                    self.table_widget.setItem(row_idx, col_idx, item)
-
-        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table_widget.verticalHeader().setVisible(False)
-
-        self.table_widget.blockSignals(False)  # ✅ Allow actual edits to be detected
-
     def update_table_offset(self, change): #UI + DATA_ACCESS
         """Handles pagination while ensuring dropdowns remain intact and row count is correct."""
         old_offset = self.table_offset
@@ -1535,7 +1443,7 @@ class DatabaseApp(QMainWindow):
         except mariadb.Error as e:
             QMessageBox.critical(None, "Error", f"Failed to retrieve data from {table_name}: {e}")
 
-    def search_table(self, column, search_text): #UI + DATA_ACCESS
+    def search_table(self, column, search_text):  # UI + DATA_ACCESS
         """Search for records in the selected table without pagination restrictions."""
 
         if not search_text.strip():
@@ -1554,7 +1462,9 @@ class DatabaseApp(QMainWindow):
             if not results:
                 QMessageBox.information(self, "No Results", "No records found matching your search.")
             else:
-                self.populate_table(results)  # ✅ Display all search results
+                # Pass the necessary arguments to populate_table
+                from ui import populate_table  # Import function from ui.py
+                populate_table(self.table_widget, self.current_table_name, results)  # ✅ Display all search results
 
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"❌ Database Error: {e}")
@@ -3640,17 +3550,17 @@ if __name__ == "__main__": #MAIN
         """)
 
         # ✅ Create and Show Splash Screen
-        splash = SplashScreen()
-        splash.show()
+        splashscreen = SplashScreen()
+        splashscreen.show()
         app.processEvents()  # ✅ Ensure UI updates before proceeding
 
         # ✅ Start Loading Thread
         loading_thread = InitializationThread()
-        loading_thread.progress.connect(splash.update_progress)
+        loading_thread.progress.connect(splashscreen.update_progress)
 
         def start_main_app():
             """ Called when initialization is complete """
-            splash.close()  # ✅ Close splash screen first
+            splashscreen.close()  # ✅ Close splash screen first
             app.processEvents()  # ✅ Ensure UI updates before creating the main window
 
             # ✅ Initialize the main application window
