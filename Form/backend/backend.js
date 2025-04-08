@@ -7,6 +7,9 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const fs = require('fs');
+const generatePrintJob = require("./generatePrintJob");
+
+
 
 const app = express();
 app.use(express.json());
@@ -52,6 +55,71 @@ app.post("/api/open-form", (req, res) => {
     });
 });
 
+
+
+// 🔹 Print Job Details 
+app.post("/print-job", async (req, res) => {
+    const { jobID } = req.body;
+
+    if (!jobID) {
+        return res.status(400).json({ error: "Job ID is required for printing" });
+    }
+
+    try {
+        // 🔹 Fetch job details from the database
+        const [jobResults] = await db.promise().query(
+            "SELECT j.jobID, c.FirstName, c.SurName, c.Phone, c.Email, j.Issue FROM jobs j JOIN customers c ON j.CustomerID = c.CustomerID WHERE j.jobID = ?",
+            [jobID]
+        );
+
+        if (jobResults.length === 0) {
+            return res.status(404).json({ error: "Job not found" });
+        }
+
+        const job = jobResults[0]; // Get the job details
+
+        // 🔹 Generate HTML for printing
+        const htmlContent = `
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    h2 { text-align: center; }
+                    .job-id { text-align: right; font-size: 16px; font-weight: bold; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { border: 1px solid black; padding: 8px; text-align: left; }
+                    th { background-color: #f2f2f2; }
+                </style>
+            </head>
+            <body>
+                <div class="job-id">Job ID: ${job.jobID}</div>
+                <h2>Repair Job Details</h2>
+                <table>
+                    <tr><th>Customer Name</th><td>${job.FirstName} ${job.SurName}</td></tr>
+                    <tr><th>Phone</th><td>${job.Phone}</td></tr>
+                    <tr><th>Email</th><td>${job.Email}</td></tr>
+                    <tr><th>Issue</th><td>${job.Issue}</td></tr>
+                </table>
+            </body>
+            </html>
+        `;
+
+        // 🔹 Launch Puppeteer & Print
+        const browser = await puppeteer.launch({ headless: true });
+        const page = await browser.newPage();
+
+        await page.setContent(htmlContent);
+        await page.evaluate(() => window.print()); // Trigger print
+
+        await browser.close();
+
+        res.json({ message: "Print job sent successfully" });
+
+    } catch (error) {
+        console.error("❌ Error printing job:", error);
+        res.status(500).json({ error: "Error generating print job", details: error.message });
+    }
+});
 
 
 
@@ -160,6 +228,9 @@ app.post("/submit", async (req, res) => {
 
         // Send Confirmation Email
         sendConfirmationEmail(email, firstName, lastName, jobID);
+       
+        // Step 4: Trigger the print job
+        await generatePrintJob({ jobID, firstName, lastName, phone, email, issue });
 
         res.json({ message: "Form submitted successfully! You will receive an email confirmation shortly.", jobID });
 

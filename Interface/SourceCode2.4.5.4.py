@@ -36,8 +36,14 @@ from PyQt5.QtWidgets import (
 )
 
 import schedule
-
-
+from file_ops import load_settings
+from ui import create_settings_page
+from ui import create_login_page
+from ui import open_scheduling_options_dialog
+from ui import apply_button_hover_animation
+from ui import options_page
+from ui import main_menu_page
+from ui import keyPressEvent
 
 def handle_db_error(error, context="Database Error"): #ERROR_UTILS
     """
@@ -124,7 +130,6 @@ class InitializationThread(QThread): #UI
             self.progress.emit(i)  # Emit progress value
 
 class DatabaseApp(QMainWindow):
-    SETTINGS_FILE = "settings.json"  # Define the settings file
     # Path to save the JSON configuration for the backup schedule
     SCHEDULE_FILE_PATH = "backup_schedule.json"
 
@@ -146,24 +151,21 @@ class DatabaseApp(QMainWindow):
         """)
 
         # Load settings
-        self.database_config = self.load_settings()
+        self.database_config = load_settings()
 
         # Stack for multiple pages
         self.central_widget = QStackedWidget()
         self.setCentralWidget(self.central_widget)
 
         # Add pages
-        self.login_page = self.create_login_page()
-        self.settings_page = self.create_settings_page()
+        self.login_page = create_login_page(self)
+        self.settings_page = create_settings_page(
+            self.database_config,
+            self.save_settings,
+            lambda: self.central_widget.setCurrentWidget(self.login_page)
+        )
         self.central_widget.addWidget(self.login_page)
         self.central_widget.addWidget(self.settings_page)
-
-    def load_settings(self): #FILE_OPS
-        """Loads the database settings from a JSON file."""
-        if os.path.exists(self.SETTINGS_FILE):
-            with open(self.SETTINGS_FILE, "r") as file:
-                return json.load(file)
-        return {"host": "localhost", "database": ""}
 
     def save_settings(self): #UI + FILE_OPS
         """Save settings from the settings page into a JSON file."""
@@ -180,238 +182,6 @@ class DatabaseApp(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
-
-    def apply_button_hover_animation(self, button): #UI
-        """Applies a hover animation effect to a QPushButton."""
-        original_width = button.sizeHint().width()
-        animation = QPropertyAnimation(button, QByteArray(b"minimumWidth"))
-        animation.setDuration(150)  # Animation duration in ms
-        animation.setStartValue(original_width)
-        animation.setEndValue(original_width + 10)
-        animation.setEasingCurve(QEasingCurve.InOutQuad)
-
-        def on_hover(event):
-            animation.setDirection(QPropertyAnimation.Forward)
-            animation.start()
-
-        def on_leave(event):
-            animation.setDirection(QPropertyAnimation.Backward)
-            animation.start()
-
-        button.enterEvent = on_hover
-        button.leaveEvent = on_leave
-
-    def create_settings_page(self): #UI
-        """Creates a modern settings page UI."""
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(50, 50, 50, 50)
-        layout.setAlignment(Qt.AlignCenter)
-
-        # 🎨 **Apply Modern Styling**
-        page.setStyleSheet("""
-            QWidget {
-                background-color: #2E2E2E;
-                color: white;
-            }
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #3A9EF5;
-            }
-            QLineEdit {
-                background-color: #444;
-                color: white;
-                border: 1px solid #3A9EF5;
-                border-radius: 5px;
-                padding: 8px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #3A9EF5;
-            }
-            QPushButton {
-                background-color: #3A9EF5;
-                color: white;
-                padding: 10px;
-                font-weight: bold;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #1E7BCC;
-            }
-            QPushButton#backButton {
-                background-color: #666;
-            }
-            QPushButton#backButton:hover {
-                background-color: #888;
-            }
-        """)
-
-        # 🔹 **Title Label**
-        title = QLabel("⚙ Settings")
-        title.setFont(QFont("Arial", 24, QFont.Bold))
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-
-        # 🔹 **Form Layout**
-        form_layout = QFormLayout()
-
-        self.host_entry = QLineEdit(self.database_config["host"])
-        self.host_entry.setPlaceholderText("Enter Database Host")
-        form_layout.addRow("🌐 Host:", self.host_entry)
-
-        self.database_entry = QLineEdit(self.database_config["database"])
-        self.database_entry.setPlaceholderText("Enter Database Name")
-        form_layout.addRow("💾 Database:", self.database_entry)
-
-        layout.addLayout(form_layout)
-
-        # 🔹 **Save Button**
-        self.save_button = QPushButton("💾 Save Settings")
-        self.save_button.clicked.connect(self.save_settings)
-        layout.addWidget(self.save_button)
-
-        # 🔹 **Back Button**
-        self.back_button = QPushButton("⬅ Back")
-        self.back_button.setObjectName("backButton")
-        self.back_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.login_page))
-        layout.addWidget(self.back_button)
-
-        return page
-
-    def create_login_page(self): #UI
-        """Creates a modern, visually appealing login UI with improved layout and animations."""
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(50, 50, 50, 50)
-        layout.setSpacing(20)  # Increased spacing for a cleaner look
-        layout.setAlignment(Qt.AlignCenter)
-
-        # 🎨 **Dark Mode Styling**
-        page.setStyleSheet("""
-            QWidget {
-                background-color: #2E2E2E;
-                color: white;
-            }
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #3A9EF5;
-            }
-            QLineEdit {
-                background-color: #444;
-                color: white;
-                border: 1px solid #3A9EF5;
-                border-radius: 8px;
-                padding: 10px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #3A9EF5;
-            }
-            QPushButton {
-                background-color: #3A9EF5;
-                color: white;
-                padding: 12px;
-                font-weight: bold;
-                font-size: 14px;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #1E7BCC;
-            }
-            QPushButton:pressed {
-                background-color: #1665B3;
-            }
-            QPushButton#settingsButton {
-                background-color: #444;
-            }
-            QPushButton#settingsButton:hover {
-                background-color: #666;
-            }
-            QPushButton#toggleButton {
-                background-color: #555;
-                border-radius: 6px;
-                padding: 5px;
-            }
-            QPushButton#toggleButton:hover {
-                background-color: #777;
-            }
-            QLabel#errorLabel {
-                color: #FF5555;
-                font-size: 14px;
-                font-weight: bold;
-            }
-        """)
-
-        # 🔹 **Title Label**
-        title = QLabel("🩺 Database Doctor")
-        title.setFont(QFont("Arial", 26, QFont.Bold))
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-
-        # 🔹 **Error Message Label**
-        self.error_label = QLabel("")
-        self.error_label.setObjectName("errorLabel")
-        self.error_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.error_label)
-
-        # 🔹 **Form Layout (Username & Password)**
-        form_layout = QFormLayout()
-        form_layout.setSpacing(15)
-
-        self.username_entry = QLineEdit()
-        self.username_entry.setPlaceholderText("Enter your username")
-        form_layout.addRow("👤 Username:", self.username_entry)
-
-        self.password_entry = QLineEdit()
-        self.password_entry.setPlaceholderText("Enter your password")
-        self.password_entry.setEchoMode(QLineEdit.Password)
-        form_layout.addRow("🔒 Password:", self.password_entry)
-
-        layout.addLayout(form_layout)
-
-        # 🔹 **Password Toggle Button**
-        toggle_layout = QHBoxLayout()
-        toggle_layout.setAlignment(Qt.AlignRight)
-
-        toggle_button = QPushButton("👁 Show")
-        toggle_button.setObjectName("toggleButton")
-        toggle_button.setCheckable(True)
-        toggle_button.setFixedWidth(60)
-
-        def toggle_password():
-            """Toggles password visibility with animation."""
-            if toggle_button.isChecked():
-                self.password_entry.setEchoMode(QLineEdit.Normal)
-                toggle_button.setText("🙈 Hide")
-            else:
-                self.password_entry.setEchoMode(QLineEdit.Password)
-                toggle_button.setText("👁 Show")
-
-        toggle_button.clicked.connect(toggle_password)
-        toggle_layout.addWidget(toggle_button)
-        layout.addLayout(toggle_layout)
-
-        # 🔹 **Login Button with Animation**
-        self.login_button = QPushButton("🔓 Login")
-        self.login_button.setFixedHeight(50)
-        self.login_button.setObjectName("animatedButton")
-        self.login_button.clicked.connect(self.login)
-        layout.addWidget(self.login_button)
-
-        # 🔹 **Settings Button with Animation**
-        self.settings_button = QPushButton("⚙ Settings")
-        self.settings_button.setObjectName("settingsButton")
-        self.settings_button.setFixedHeight(40)
-        self.settings_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.settings_page))
-        layout.addWidget(self.settings_button)
-
-        # 🔹 **Apply Animation to Buttons**
-        self.apply_button_hover_animation(self.login_button)
-        self.apply_button_hover_animation(self.settings_button)
-
-        return page
 
     def login(self):#UI +DATA_ACCESSS
         """Handles the login process securely."""
@@ -456,133 +226,20 @@ class DatabaseApp(QMainWindow):
             QMessageBox.information(self, "Success", message)
 
             # ✅ Redirect to Main Menu
-            self.main_menu_page()
+            main_menu_page(self)
 
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"Database connection failed: {e}")
 
             # ✅ Clear the Password Field Even on Failure
             self.password_entry.clear()
+    
+    def keyPressEvent(self, event):
+        keyPressEvent(self, event)  # Calls the one from ui.py
 
-    def keyPressEvent(self, event): #UI
-        """Handles key press events for the login window."""
-        if event.key() == Qt.Key_Return:  # Check if the "Enter" key is pressed
-            self.login()  # Call the login method
-
-    def main_menu_page(self):#UI
-        """Creates and displays the main menu UI with improved layout, centered text, and aligned emojis."""
-
-        # ✅ If the menu page already exists, switch to it
-        if hasattr(self, "main_menu"):
-            self.central_widget.setCurrentWidget(self.main_menu)
-            return
-
-        # ✅ Create the main menu only ONCE
-        self.main_menu = QWidget()
-        layout = QVBoxLayout(self.main_menu)
-        layout.setContentsMargins(40, 20, 40, 20)
-        layout.setSpacing(15)  # Adds spacing between elements
-
-        # **📌 Title Label with Icon**
-        title = QLabel("📌 Main Menu")
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("""
-            font-size: 26px; 
-            font-weight: bold;
-            color: #FFFFFF; 
-            padding: 10px; 
-            border-bottom: 2px solid #3A9EF5;
-        """)
-        layout.addWidget(title)
-
-        # **📂 Menu Frame for UI Grouping**
-        menu_frame = QFrame()
-        menu_frame.setStyleSheet("""
-            background-color: #2E2E2E; 
-            border-radius: 10px; 
-            padding: 20px;
-        """)
-        menu_layout = QVBoxLayout(menu_frame)
-        menu_layout.setSpacing(12)
-
-        # ✅ Define buttons and their actions (Preserving Your Features)
-        button_data = [
-            ("📁  Tables", self.view_tables),
-            ("📝  Add Job Notes", self.ask_for_job_id),
-            ("🔍  Query", self.run_query),
-            ("📑  Customer Lookup", self.Customer_report),
-            ("📊  Dashboard", self.dashboard_page),
-            ("⚙️  Settings", self.options_page)
-        ]
-
-        # ✅ **Calculate fixed-width spacing for emoji alignment**
-        font_metrics = QFontMetrics(QPushButton().font())  # Get font metrics for uniform spacing
-        max_text_length = max(len(label) for label, _ in button_data)
-        fixed_width = font_metrics.horizontalAdvance("🔄  Sync Google Forms  ")  # Ensures all buttons align
-
-        # ✅ **Create buttons dynamically (Preserving Features & Improving Performance)**
-        for label, command in button_data:
-            button = QPushButton(label)
-            button.setCursor(Qt.PointingHandCursor)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)  # Expanding width, fixed height
-            button.setMinimumWidth(fixed_width)  # Ensures all buttons have the same width
-            button.setFixedHeight(45)  # Ensures uniform height
-            button.setStyleSheet("""
-                QPushButton {
-                    font-size: 16px; 
-                    font-family: monospace;  /* Ensures emojis and text align properly */
-                    background-color: #3A9EF5; 
-                    color: white; 
-                    padding: 12px;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    text-align: center;  
-                }
-                QPushButton:hover {
-                    background-color: #307ACC;
-                }
-            """)
-            button.clicked.connect(command)
-            menu_layout.addWidget(button)
-
-        # ✅ **🚪 Logout Button (Preserved & Improved)**
-        logout_button = QPushButton("🚪  Logout")
-        logout_button.setCursor(Qt.PointingHandCursor)
-        logout_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        logout_button.setMinimumWidth(fixed_width)
-        logout_button.setFixedHeight(45)
-        logout_button.setStyleSheet("""
-            QPushButton {
-                font-size: 16px; 
-                font-family: monospace;
-                background-color: #D9534F; 
-                color: white; 
-                padding: 12px;
-                border-radius: 5px;
-                font-weight: bold;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #C9302C;
-            }
-        """)
-        logout_button.clicked.connect(self.logout)  # ✅ Call the logout method directly
-        menu_layout.addWidget(logout_button)
-
-        # ✅ **Finalizing Layouts**
-        menu_frame.setLayout(menu_layout)
-        layout.addWidget(menu_frame)
-
-        # ✅ **Set the main layout**
-        self.main_menu.setLayout(layout)
-
-        # ✅ **Add main menu to the stacked widget (Only Once)**
-        self.central_widget.addWidget(self.main_menu)
-        self.central_widget.setCurrentWidget(self.main_menu)  # ✅ Switch to main menu
-
-    def logout(self):#UI + DATA_ACCESS
+    def logout(self):  # UI + DATA_ACCESS
         """Logs out the user and resets the UI to prevent issues."""
-        
+
         confirm = QMessageBox.question(
             self, "Logout", "Are you sure you want to log out?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
@@ -597,8 +254,50 @@ class DatabaseApp(QMainWindow):
             self.password_entry.clear()
 
             # ✅ Re-create settings page when logging out
-            self.settings_page = self.create_settings_page()  # Ensure it's properly re-created
-            self.central_widget.addWidget(self.settings_page)  # Add the settings page to the stack
+            self.settings_page = create_settings_page(
+                self.database_config,  # Passing the database config
+                self.save_settings,     # Passing the save_settings method
+                lambda: self.central_widget.setCurrentWidget(self.login_page)  # Back action
+            )
+            
+            # Reapply the stylesheet after settings page is recreated
+            self.settings_page.setStyleSheet("""
+                QWidget {
+                    background-color: #2E2E2E;
+                    color: white;
+                }
+                QLabel {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #3A9EF5;
+                }
+                QLineEdit {
+                    background-color: #444;
+                    color: white;
+                    border: 1px solid #3A9EF5;
+                    border-radius: 5px;
+                    padding: 8px;
+                }
+                QPushButton {
+                    background-color: #3A9EF5;
+                    color: white;
+                    padding: 10px;
+                    font-weight: bold;
+                    border-radius: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #1E7BCC;
+                }
+                QPushButton#backButton {
+                    background-color: #666;
+                }
+                QPushButton#backButton:hover {
+                    background-color: #888;
+                }
+            """)
+
+            # Add the settings page to the stack
+            self.central_widget.addWidget(self.settings_page)
 
             # ✅ Close database connection (Optional, for security)
             if hasattr(self, "conn") and self.conn:
@@ -606,160 +305,6 @@ class DatabaseApp(QMainWindow):
                 self.conn = None  # Ensure no active connection remains
 
             QMessageBox.information(self, "Logged Out", "✅ You have been successfully logged out.")
-
-    def options_page(self):#UI
-        """Creates a visually enhanced settings/options page in PyQt."""
-
-        # Create the settings page widget
-        self.settings_page = QWidget()
-        layout = QVBoxLayout(self.settings_page)
-
-        # 🎨 Apply a dark theme with better contrast
-        self.settings_page.setStyleSheet("""
-            QWidget {
-                background-color: #2E2E2E;
-                color: white;
-                font-size: 14px;
-            }
-            QLabel {
-                font-size: 22px;
-                font-weight: bold;
-                color: #3A9EF5;
-                padding: 10px;
-            }
-            QPushButton {
-                background-color: #3A9EF5;
-                color: white;
-                padding: 12px;
-                font-weight: bold;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #1E7BCC;
-            }
-            QPushButton#backButton {
-                background-color: #D9534F;
-            }
-            QPushButton#backButton:hover {
-                background-color: #C9302C;
-            }
-            QLineEdit {
-                background-color: #444;
-                color: white;
-                border: 1px solid #3A9EF5;
-                border-radius: 5px;
-                padding: 8px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #3A9EF5;
-            }
-        """)
-
-        # 🛠 **Title Label**
-        title_label = QLabel("⚙️ Settings")
-        title_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title_label)
-
-        # Export, Backup, and Restore Buttons
-        export_button = QPushButton("📥 Export Entire Database to Excel")
-        export_button.clicked.connect(self.export_database_to_excel)
-        layout.addWidget(export_button)
-
-        backup_button = QPushButton("💾 Backup Database")
-        backup_button.clicked.connect(self.backup_database)
-        layout.addWidget(backup_button)
-
-        # ✅ **Scheduling Options Button** (New)
-        scheduling_options_button = QPushButton("⏰ Backup Schedule Options")
-        scheduling_options_button.clicked.connect(self.open_scheduling_options_dialog)
-        layout.addWidget(scheduling_options_button)
-
-        restore_button = QPushButton("🔄 Create from Backup")
-        restore_button.clicked.connect(self.restore_database)
-        layout.addWidget(restore_button)
-
-        change_password_button = QPushButton("🔑 Change Password")
-        change_password_button.clicked.connect(self.change_db_password)
-        layout.addWidget(change_password_button)
-
-        # 🔙 **Back to Main Menu Button**
-        back_button = QPushButton("⬅ Back to Main Menu")
-        back_button.setObjectName("backButton")  # Apply special styling
-        back_button.clicked.connect(lambda: self.main_menu_page())
-        layout.addWidget(back_button)
-
-        # Add the settings page to the stacked widget
-        self.central_widget.addWidget(self.settings_page)
-        self.central_widget.setCurrentWidget(self.settings_page)
-
-    def open_scheduling_options_dialog(self):#UI
-        """Open a dialog with options related to backup scheduling with improved UI."""
-        
-        # Create the dialog
-        scheduling_dialog = QDialog(self)
-        scheduling_dialog.setWindowTitle("⚙ Backup Scheduling Options")
-        scheduling_dialog.setStyleSheet("""
-            QDialog {
-                background-color: #1E1E1E;  /* Dark background */
-                color: white;  /* White text */
-                border-radius: 10px;
-            }
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #3A9EF5;  /* Light blue text */
-            }
-            QPushButton {
-                background-color: #2A2A2A;
-                color: white;
-                border: 1px solid #3A9EF5;
-                border-radius: 5px;
-                padding: 8px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3A9EF5;
-                color: white;
-            }
-            QPushButton#closeButton {
-                background-color: #D9534F;
-            }
-            QPushButton#closeButton:hover {
-                background-color: #C9302C;
-            }
-        """)
-
-        layout = QVBoxLayout()
-
-        # ✅ Title Label
-        title_label = QLabel("⚙ Backup Scheduling Options")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(title_label)
-
-        # ✅ Schedule a new backup
-        schedule_button = QPushButton("⏰ Schedule New Backup")
-        schedule_button.clicked.connect(self.open_schedule_backup_dialog)
-        layout.addWidget(schedule_button)
-
-        # ✅ View Current Schedule
-        view_schedule_button = QPushButton("👀 View Current Schedule")
-        view_schedule_button.clicked.connect(self.view_current_schedule)
-        layout.addWidget(view_schedule_button)
-
-        # ✅ Clear Current Schedule
-        clear_schedule_button = QPushButton("🧹 Clear Current Schedule")
-        clear_schedule_button.clicked.connect(self.clear_current_schedule)
-        layout.addWidget(clear_schedule_button)
-
-        # ✅ Close Button
-        close_button = QPushButton("❌ Close")
-        close_button.setObjectName("closeButton")
-        close_button.clicked.connect(scheduling_dialog.reject)
-        layout.addWidget(close_button)
-
-        scheduling_dialog.setLayout(layout)
-        scheduling_dialog.exec_()
 
     def view_current_schedule(self): #FILE_OPS
         """Displays the current backup schedule to the user."""
@@ -4068,7 +3613,7 @@ class DatabaseApp(QMainWindow):
     def reset_window_size(self): # UI
         """Reset the window size and return to main menu."""
         self.dashboard_dialog.close()
-        self.main_menu_page()
+        main_menu_page(self)
 
     def handle_db_error(error, context="Database Error"): #ERROR_UTILS
         """Handles database-related errors in a centralized way."""
