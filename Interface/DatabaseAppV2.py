@@ -47,6 +47,7 @@ from ui import keyPressEvent
 from splashscreen import SplashScreen
 from initthread import InitializationThread
 from ui import populate_table
+from ui import refresh_page
 
 def handle_db_error(error, context="Database Error"): #ERROR_UTILS
     """
@@ -91,6 +92,7 @@ def log_error(error_message): #ERROR_UTILS
 class DatabaseApp(QMainWindow):
     # Path to save the JSON configuration for the backup schedule
     SCHEDULE_FILE_PATH = "backup_schedule.json"
+    SETTINGS_FILE = "settings.json"
 
     def __init__(self): #MAIN
         super().__init__()
@@ -118,11 +120,12 @@ class DatabaseApp(QMainWindow):
 
         # Add pages
         self.login_page = create_login_page(self)
-        self.settings_page = create_settings_page(
-            self.database_config,
-            self.save_settings,
-            lambda: self.central_widget.setCurrentWidget(self.login_page)
-        )
+        self.settings_page, self.host_entry, self.database_entry = create_settings_page(
+        self.database_config,
+        self.save_settings,
+        lambda: self.central_widget.setCurrentWidget(self.login_page)
+    )
+
         self.central_widget.addWidget(self.login_page)
         self.central_widget.addWidget(self.settings_page)
 
@@ -151,9 +154,9 @@ class DatabaseApp(QMainWindow):
 
 
           # Specify the SSL certificate paths (adjust to your paths)
-        ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
-        ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
-        ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
+        #ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
+        #ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
+        #ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
 
         print(f"🔍 Debug (Before MessageBox) - Database: {database}, Host: {host}")  # ✅ Debug print
 
@@ -168,9 +171,9 @@ class DatabaseApp(QMainWindow):
                 password=password,
                 host=host,
                 database=database,
-                ssl_ca=ssl_ca,
-                ssl_cert=ssl_cert,
-                ssl_key=ssl_key
+            #    ssl_ca=ssl_ca,
+             #   ssl_cert=ssl_cert,
+              #  ssl_key=ssl_key
         
             )
             self.cursor = self.conn.cursor()
@@ -213,7 +216,7 @@ class DatabaseApp(QMainWindow):
             self.password_entry.clear()
 
             # ✅ Re-create settings page when logging out
-            self.settings_page = create_settings_page(
+            self.settings_page, self.host_entry, self.database_entry = create_settings_page(
                 self.database_config,  # Passing the database config
                 self.save_settings,     # Passing the save_settings method
                 lambda: self.central_widget.setCurrentWidget(self.login_page)  # Back action
@@ -866,7 +869,7 @@ class DatabaseApp(QMainWindow):
         self.table_widget.clearContents()  # Clears all widgets
         self.table_widget.setRowCount(total_rows)  # Only set as many rows as needed
 
-        self.refresh_page()  # Call refresh to ensure dropdowns are assigned
+        refresh_page(self)  # Call refresh to ensure dropdowns are assigned
 
         # Reset scrollbar to the top
         self.table_widget.verticalScrollBar().setValue(0)
@@ -1108,19 +1111,9 @@ class DatabaseApp(QMainWindow):
         finally:
             self.table_widget.blockSignals(False)  # Allow further edits
 
-    def refresh_page(self): #UI
-        """Reloads the current page while keeping the dropdowns intact."""
-        self.table_widget.blockSignals(True)  # Prevents unwanted table updates
-        self.table_widget.setRowCount(0)  # Fully clears rows before repopulating
-        self.load_table(self.table_name, self.table_offset)  # Load correct page
-        self.table_widget.blockSignals(False)  # Re-enable signals
-
-    def eventFilter(self, source, event): #UI
-        # Check if the source is a QComboBox and the event type is a WheelEvent
-        if isinstance(source, QComboBox) and event.type() == QEvent.Wheel:
-            # Block the scroll event
-            return True  # This will block the wheel event, preventing it from affecting the combo box
-        return super().eventFilter(source, event)  # Let the base class handle other events
+    def eventFilter(self, source, event): #keep
+        from ui import event_filter
+        return event_filter(self, source, event)
 
     def update_status_and_database(self, row_idx, new_status): #UI + DATA_ACCESS
         """Handles the change of status and updates the database."""

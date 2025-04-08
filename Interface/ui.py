@@ -13,6 +13,26 @@ from PyQt5.QtWidgets import QComboBox, QTableWidgetItem, QMessageBox, QHeaderVie
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QDialog
 
+from PyQt5.QtCore import QEvent
+from PyQt5.QtWidgets import QComboBox
+
+def event_filter(parent, source, event):
+    """
+    Filters out wheel events on QComboBox widgets to prevent accidental scrolling.
+
+    Args:
+        parent: The object that owns this filter and needs fallback eventFilter handling.
+        source: The QObject that sent the event.
+        event: The QEvent being processed.
+
+    Returns:
+        bool: True if the event is handled (blocked), otherwise False.
+    """
+    if isinstance(source, QComboBox) and event.type() == QEvent.Wheel:
+        return True  # Block the wheel event
+
+    # Fallback to the default eventFilter behavior of the parent
+    return super(type(parent), parent).eventFilter(source, event)
 
 def populate_table(table_widget, table_name, data):
     """Populates the table with fresh data without triggering unnecessary updates."""
@@ -91,7 +111,7 @@ def create_settings_page(database_config, on_save, on_back):
     layout.addLayout(form_layout)
 
     save_button = QPushButton("💾 Save Settings")
-    save_button.clicked.connect(lambda: on_save(host_entry.text(), database_entry.text()))
+    save_button.clicked.connect(on_save)
     layout.addWidget(save_button)
 
     back_button = QPushButton("⬅ Back")
@@ -99,7 +119,8 @@ def create_settings_page(database_config, on_save, on_back):
     back_button.clicked.connect(on_back)
     layout.addWidget(back_button)
 
-    return page
+    return page, host_entry, database_entry
+
 
 def main_menu_page(parent):
     """Creates and displays the main menu UI with improved layout, centered text, and aligned emojis."""
@@ -510,3 +531,16 @@ def keyPressEvent(parent, event): #UI
     """Handles key press events for the login window."""
     if event.key() == Qt.Key_Return:  # Check if the "Enter" key is pressed
         parent.login()  # Call the login method
+
+def refresh_page(parent):
+    """
+    Reloads the current page while keeping the dropdowns intact.
+
+    Args:
+        parent: The object (typically a UI controller or main window)
+                that holds table_widget, table_name, table_offset, and load_table().
+    """
+    parent.table_widget.blockSignals(True)  # Prevents unwanted table updates
+    parent.table_widget.setRowCount(0)      # Clears all existing rows
+    parent.load_table(parent.table_name, parent.table_offset)  # Loads the appropriate data
+    parent.table_widget.blockSignals(False)  # Re-enable signals
