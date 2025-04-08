@@ -47,29 +47,21 @@ from ui import (
 from splashscreen import SplashScreen
 from initthread import InitializationThread
 
+# error_utils.py
+import logging
+from PyQt5.QtWidgets import QMessageBox
 
-def handle_db_error(error, context="Database Error"): #ERROR_UTILS
-    """
-    Handles database errors by logging them and showing a user-friendly message.
-    """
-    error_message = f"{context}: {error}"
-    logging.error(error_message)
-
-    QMessageBox.critical(
-        None, 
-        "Database Error", 
-        f"⚠ An error occurred: {error}\nPlease check the logs for details."
-    )
-
-# Configure logging
-logging.basicConfig( #ERROR_UTILS
+# Initialize logging once
+logging.basicConfig(
     filename="app_errors.log",
     level=logging.ERROR,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-def log_error(error_message): #ERROR_UTILS
-    """Log an error and display it in a custom-styled QMessageBox."""
+def log_error(error_message):
+    """
+    Logs an error and displays it in a styled QMessageBox.
+    """
     logging.error(error_message)
 
     msg = QMessageBox()
@@ -77,23 +69,41 @@ def log_error(error_message): #ERROR_UTILS
     msg.setWindowTitle("Application Error")
     msg.setText("An unexpected error occurred. Please check the logs.")
     msg.setDetailedText(error_message)
-
-    # Apply Stylesheet for better visibility
     msg.setStyleSheet("""
         QMessageBox { background-color: #2A2A2A; }
-        QLabel { color: black; font-size: 14px; }  /* Change text color */
+        QLabel { color: black; font-size: 14px; }
         QPushButton { background-color: #3A9EF5; color: white; padding: 10px; border-radius: 5px; }
     """)
-
     msg.exec_()
+
+def handle_db_error(error, context="Database Error"):
+    """
+    Logs and displays a database-specific error message.
+    """
+    error_message = f"{context}: {error}"
+    logging.error(error_message)
+
+    QMessageBox.critical(
+        None,
+        "Database Error",
+        f"⚠ An error occurred:\n{error}\n\nPlease check the logs for details."
+    )
+
+def log_to_file_only(error_message, log_path="error_log.txt"):
+    """
+    Logs the error to a plain text file (no popup).
+    """
+    try:
+        with open(log_path, "a") as log_file:
+            log_file.write(error_message + "\n")
+    except Exception as e:
+        # Fallback in case even logging fails
+        logging.error(f"Logging failed: {e} | Original error: {error_message}")
 
 
 class DatabaseApp(QMainWindow):
-    # Path to save the JSON configuration for the backup schedule
-    SCHEDULE_FILE_PATH = "backup_schedule.json"
-    SETTINGS_FILE = "settings.json"
-
-    def __init__(self):
+    
+    def __init__(self): #MAIN
         super().__init__()
 
         # ✅ Load and apply scheduled jobs
@@ -206,7 +216,7 @@ class DatabaseApp(QMainWindow):
             # ✅ Clear the Password Field Even on Failure
             self.password_entry.clear()
     
-    def keyPressEvent(self, event): #keep here
+    def keyPressEvent(self, event): #MAIN
         keyPressEvent(self, event)  # Calls the one from ui.py
 
     def logout(self):  # UI + DATA_ACCESS
@@ -858,7 +868,7 @@ class DatabaseApp(QMainWindow):
         finally:
             self.table_widget.blockSignals(False)  # Allow further edits
 
-    def eventFilter(self, source, event): #keep
+    def eventFilter(self, source, event): #MAIN
         from ui import event_filter
         return event_filter(self, source, event)
 
@@ -3217,19 +3227,6 @@ class DatabaseApp(QMainWindow):
         self.dashboard_dialog.setLayout(layout)
         self.dashboard_dialog.exec_()
    
-    def handle_db_error(error, context="Database Error"): #ERROR_UTILS
-        """Handles database-related errors in a centralized way."""
-        error_message = f"{context}: {error}"
-        logging.error(error_message)
-        
-        QMessageBox.critical(None, "Database Error", f"⚠ An error occurred: {error}\nPlease check the logs for details.")
-
-
-def log_error(error_message): #ERROR_UTILS
-    """Logs errors to a file."""
-    with open("error_log.txt", "a") as log_file:
-        log_file.write(error_message + "\n")
-
 if __name__ == "__main__": #MAIN
     try:
         app = QApplication(sys.argv)
