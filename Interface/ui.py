@@ -1,20 +1,181 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QHBoxLayout
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QByteArray
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy
+# ─────────────────────────────────────────────────────────────────────────────
+# 📦 Standard Library
+import os
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🎨 PyQt5 Core
+from PyQt5.QtCore import (
+    Qt, QEasingCurve, QPropertyAnimation, QByteArray, QEvent
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFontMetrics
-from PyQt5.QtCore import Qt
 
-from PyQt5.QtWidgets import QComboBox, QTableWidgetItem, QMessageBox, QHeaderView
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QDialog
+# 🖼 PyQt5 GUI Elements
+from PyQt5.QtGui import QFont, QFontMetrics
 
-from PyQt5.QtCore import QEvent
-from PyQt5.QtWidgets import QComboBox
+# 🧱 PyQt5 Widgets
+from PyQt5.QtWidgets import (
+    QComboBox, QDialog, QFileDialog, QFormLayout, QFrame, QHeaderView,
+    QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QTableWidgetItem, QVBoxLayout, QWidget, QHBoxLayout, QSizePolicy
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🧩 Project Modules
+from file_ops import (
+    view_current_schedule,
+    clear_current_schedule,
+    save_backup_schedule,
+    export_database_to_excel
+)
+
+
+def open_schedule_backup_dialog(parent, save_callback):
+    """
+    Opens a styled dialog for scheduling backups.
+
+    Args:
+        parent: The main window or controller.
+        save_callback: A function to call for saving the backup schedule.
+    """
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("📅 Schedule Backup")
+    dialog.setStyleSheet(""" 
+        QDialog {
+            background-color: #1E1E1E;
+            color: white;
+            border-radius: 10px;
+        }
+        QLabel {
+            font-size: 14px;
+            font-weight: bold;
+            color: #3A9EF5;
+        }
+        QLineEdit, QComboBox, QPushButton {
+            background-color: #2A2A2A;
+            color: white;
+            border: 1px solid #3A9EF5;
+            border-radius: 5px;
+            padding: 6px;
+        }
+        QPushButton {
+            background-color: #3A9EF5;
+            font-weight: bold;
+            padding: 8px;
+        }
+        QPushButton:hover {
+            background-color: #1D7DD7;
+        }
+        QPushButton#cancelButton {
+            background-color: #666;
+        }
+        QPushButton#cancelButton:hover {
+            background-color: #888;
+        }
+    """)
+
+    layout = QVBoxLayout()
+
+    # Title
+    title_label = QLabel("📅 Set Backup Schedule")
+    title_label.setAlignment(Qt.AlignCenter)
+    title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+    layout.addWidget(title_label)
+
+    # Frequency dropdown
+    interval_label = QLabel("⏳ Select Backup Frequency:")
+    interval_combo = QComboBox()
+    interval_combo.addItems(["Daily", "Hourly", "Every X minutes"])
+    layout.addWidget(interval_label)
+    layout.addWidget(interval_combo)
+
+    # Time entry
+    time_label = QLabel("⏰ Time of Day for Daily Backup (HH:MM):")
+    time_entry = QLineEdit()
+    time_entry.setPlaceholderText("e.g., 00:00")
+    time_entry.setStyleSheet("""
+        QLineEdit::placeholder {
+            color: #BBBBBB;
+        }
+    """)
+    layout.addWidget(time_label)
+    layout.addWidget(time_entry)
+
+    # Backup directory
+    backup_directory = []
+    directory_label = QLabel("📂 Select Backup Location:")
+    layout.addWidget(directory_label)
+
+    directory_button = QPushButton("📁 Choose Directory")
+    layout.addWidget(directory_button)
+
+    def choose_directory():
+        directory = QFileDialog.getExistingDirectory(parent, "Select Directory to Save Backup")
+        if directory:
+            backup_directory.clear()
+            backup_directory.append(directory)
+            directory_button.setText(f"📂 {os.path.basename(directory)}")
+
+    directory_button.clicked.connect(choose_directory)
+
+    # Submit button
+    submit_button = QPushButton("💾 Save Schedule")
+    submit_button.clicked.connect(lambda: save_callback(parent, interval_combo, time_entry, backup_directory, dialog))
+    layout.addWidget(submit_button)
+
+    # Cancel button
+    cancel_button = QPushButton("❌ Cancel")
+    cancel_button.setObjectName("cancelButton")
+    cancel_button.clicked.connect(dialog.close)
+    layout.addWidget(cancel_button)
+
+    dialog.setLayout(layout)
+    dialog.exec_()
+
+def ask_for_job_id(parent):
+    """
+    Prompts the user for a Job ID and, if valid, calls parent.view_notes(job_id).
+
+    Args:
+        parent: The object that implements `view_notes(job_id)`.
+    """
+    job_id, ok = QInputDialog.getText(None, "🔍 Search Job", "Enter Job ID:")
+    
+    if not ok or not job_id.strip():
+        return  # User hit Cancel or left it blank
+
+    job_id = job_id.strip()
+    if not job_id.isdigit():
+        QMessageBox.warning(None, "⚠ Invalid Input", "Job ID must be a number.")
+        return
+
+    parent.view_notes(job_id)
+
+def edit_selected_job(parent):
+    """
+    Gets the selected job's ID from the table and opens the Edit Notes dialog.
+
+    Args:
+        parent: The object with access to `table_widget` and `view_notes(job_id)`.
+    """
+    selected_items = parent.table_widget.selectedItems()
+    
+    if not selected_items:
+        QMessageBox.warning(None, "⚠ No Selection", "Please select a row to edit.")
+        return
+
+    selected_row = selected_items[0].row()
+    job_id_item = parent.table_widget.item(selected_row, 0)
+
+    if not job_id_item:
+        QMessageBox.warning(None, "⚠ Missing Job ID", "No Job ID found in the selected row.")
+        return
+
+    job_id = job_id_item.text().strip()
+
+    if not job_id.isdigit():
+        QMessageBox.warning(None, "⚠ Invalid Job ID", "Selected Job ID is not a valid number.")
+        return
+
+    parent.view_notes(job_id)
 
 def event_filter(parent, source, event):
     """
@@ -121,7 +282,6 @@ def create_settings_page(database_config, on_save, on_back):
 
     return page, host_entry, database_entry
 
-
 def main_menu_page(parent):
     """Creates and displays the main menu UI with improved layout, centered text, and aligned emojis."""
 
@@ -158,7 +318,7 @@ def main_menu_page(parent):
 
     button_data = [
         ("📁  Tables", parent.view_tables),
-        ("📝  Add Job Notes", parent.ask_for_job_id),
+        ("📝  Add Job Notes", lambda: ask_for_job_id(parent)),
         ("🔍  Query", parent.run_query),
         ("📑  Customer Lookup", parent.Customer_report),
         ("📊  Dashboard", parent.dashboard_page),
@@ -407,7 +567,7 @@ def options_page(parent):
     layout.addWidget(title_label)
 
     export_button = QPushButton("📥 Export Entire Database to Excel")
-    export_button.clicked.connect(parent.export_database_to_excel)
+    export_button.clicked.connect(lambda: export_database_to_excel(parent, parent.cursor))
     layout.addWidget(export_button)
 
     backup_button = QPushButton("💾 Backup Database")
@@ -505,18 +665,18 @@ def open_scheduling_options_dialog(parent):
 
     # ✅ Schedule a new backup
     schedule_button = QPushButton("⏰ Schedule New Backup")
-    schedule_button.clicked.connect(parent.open_schedule_backup_dialog)
+    schedule_button.clicked.connect(lambda: open_schedule_backup_dialog(parent, save_backup_schedule))
     layout.addWidget(schedule_button)
 
     # ✅ View Current Schedule
     view_schedule_button = QPushButton("👀 View Current Schedule")
-    view_schedule_button.clicked.connect(parent.view_current_schedule)
+    view_schedule_button.clicked.connect(lambda: view_current_schedule(parent))
     layout.addWidget(view_schedule_button)
 
     # ✅ Clear Current Schedule
-    clear_schedule_button = QPushButton("🧹 Clear Current Schedule")
-    clear_schedule_button.clicked.connect(parent.clear_current_schedule)
-    layout.addWidget(clear_schedule_button)
+    clear_button = QPushButton("🧹 Clear Backup Schedule")
+    clear_button.clicked.connect(lambda: clear_current_schedule(parent))
+    layout.addWidget(clear_button)
 
     # ✅ Close Button
     close_button = QPushButton("❌ Close")
@@ -544,3 +704,22 @@ def refresh_page(parent):
     parent.table_widget.setRowCount(0)      # Clears all existing rows
     parent.load_table(parent.table_name, parent.table_offset)  # Loads the appropriate data
     parent.table_widget.blockSignals(False)  # Re-enable signals
+
+def exit_app(parent):
+    """
+    Closes the main application window.
+    
+    Args:
+        parent: The main window or QWidget that should be closed.
+    """
+    parent.close()
+
+def reset_window_size(parent):
+    """
+    Closes the dashboard dialog and returns to the main menu.
+
+    Args:
+        parent: The main window or controller with access to `dashboard_dialog` and `main_menu_page()`.
+    """
+    parent.dashboard_dialog.close()
+    main_menu_page(parent)

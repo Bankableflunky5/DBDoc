@@ -1,53 +1,52 @@
-# Standard Library Imports
-import os
-import sys
+# ─────────────────────────────────────────────────────────────────────────────
+# 📦 Standard Library
 import json
 import logging
+import os
+import sys
+import threading
 from datetime import datetime
-import time
-from threading import Thread
-import math
 
-# Database Libraries
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🛢 Database
 import mariadb
 
-
-# Data Handling
-import pandas as pd
+# ─────────────────────────────────────────────────────────────────────────────
+# 📊 Data Handling / Visualization
 import numpy as np
-
-# Data Visualization
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-# PyQt5 GUI Libraries
+# ─────────────────────────────────────────────────────────────────────────────
+# 🎨 PyQt5 GUI Framework
 from PyQt5.QtCore import (
-    Qt, QEvent, QDate, QPropertyAnimation, 
-    QEasingCurve, QByteArray, QThread, pyqtSignal, QDateTime
+    QDate, QDateTime,
+    QPropertyAnimation, Qt
 )
-from PyQt5.QtGui import QFont, QFontMetrics, QIcon, QPixmap
+from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QPushButton, 
-    QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit, QComboBox, 
-    QTableWidget, QTableWidgetItem, QCheckBox, QDialog, QScrollArea, 
-    QSizePolicy, QStackedWidget, QFormLayout, QHeaderView, 
-    QInputDialog, QFrame, QSpacerItem, QSplashScreen, QProgressBar, 
-    QFileDialog, QListWidget, QListWidgetItem, QStyle, QAction, QMessageBox
+    QAction, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
+    QFormLayout, QHeaderView, QHBoxLayout, QInputDialog,
+    QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
+    QMessageBox, QPushButton, QScrollArea, QSizePolicy,
+    QSpacerItem, QStackedWidget, QStyle, QTableWidget,
+    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
 )
-
-import schedule
-from file_ops import load_settings
-from ui import create_settings_page
-from ui import create_login_page
-from ui import open_scheduling_options_dialog
-from ui import apply_button_hover_animation
-from ui import options_page
-from ui import main_menu_page
-from ui import keyPressEvent
+# ─────────────────────────────────────────────────────────────────────────────
+# 🧩 Project Modules
+from file_ops import (
+    load_settings, load_schedule_on_startup, run_scheduled_backups
+)
+from ui import (
+   create_login_page, create_settings_page,
+    edit_selected_job, keyPressEvent, main_menu_page,
+    refresh_page, reset_window_size
+)
 from splashscreen import SplashScreen
 from initthread import InitializationThread
-from ui import populate_table
-from ui import refresh_page
+
 
 def handle_db_error(error, context="Database Error"): #ERROR_UTILS
     """
@@ -94,14 +93,17 @@ class DatabaseApp(QMainWindow):
     SCHEDULE_FILE_PATH = "backup_schedule.json"
     SETTINGS_FILE = "settings.json"
 
-    def __init__(self): #MAIN
+    def __init__(self):
         super().__init__()
-        self.load_schedule_on_startup() 
-        self.is_refreshing = False  # Flag to track whether refresh is in progress
-        self.is_backup_running = False  # Track if a backup is in progress
+
+        # ✅ Load and apply scheduled jobs
+        load_schedule_on_startup(self)
+
+        self.is_refreshing = False
+        self.is_backup_running = False
+        self.is_adding_new_record = False
 
         self.setWindowTitle("The Laptop Doctor")
-        self.is_adding_new_record = False  # Initialize the flag
         self.setGeometry(100, 100, 500, 500)
         self.setStyleSheet("""
             QMainWindow { background-color: #1E1E1E; }
@@ -111,24 +113,32 @@ class DatabaseApp(QMainWindow):
             QPushButton:hover { background-color: #1D7DD7; }
         """)
 
-        # Load settings
+        # ✅ Load database settings
         self.database_config = load_settings()
 
-        # Stack for multiple pages
+        # ✅ UI Page setup
         self.central_widget = QStackedWidget()
         self.setCentralWidget(self.central_widget)
 
-        # Add pages
         self.login_page = create_login_page(self)
         self.settings_page, self.host_entry, self.database_entry = create_settings_page(
-        self.database_config,
-        self.save_settings,
-        lambda: self.central_widget.setCurrentWidget(self.login_page)
-    )
+            self.database_config,
+            self.save_settings,
+            lambda: self.central_widget.setCurrentWidget(self.login_page)
+        )
 
         self.central_widget.addWidget(self.login_page)
         self.central_widget.addWidget(self.settings_page)
 
+        # ✅ Start backup scheduler thread
+        self.scheduler_stop_event = threading.Event()
+        self.scheduler_thread = threading.Thread(
+            target=run_scheduled_backups,
+            args=(self.scheduler_stop_event,),
+            daemon=True
+        )
+        self.scheduler_thread.start()
+    
     def save_settings(self): #UI + FILE_OPS
         """Save settings from the settings page into a JSON file."""
         try:
@@ -267,235 +277,6 @@ class DatabaseApp(QMainWindow):
                 self.conn = None  # Ensure no active connection remains
 
             QMessageBox.information(self, "Logged Out", "✅ You have been successfully logged out.")
-
-    def view_current_schedule(self): #FILE_OPS
-        """Displays the current backup schedule to the user."""
-        schedule_data = self.load_schedule_from_json()
-
-        if schedule_data:
-            # Display current schedule (you could use a QLabel or a custom dialog here)
-            schedule_details = f"Interval: {schedule_data['interval']}\n"
-            schedule_details += f"Time of Day: {schedule_data['time_of_day']}\n"
-            schedule_details += f"Backup Directory: {schedule_data['backup_directory']}"
-
-            QMessageBox.information(self, "Current Backup Schedule", schedule_details)
-        else:
-            QMessageBox.information(self, "No Schedule", "No backup schedule is set.")
-
-    def clear_current_schedule(self): #FILE_OPS
-        """Clears the current backup schedule."""
-        schedule_data = self.load_schedule_from_json()
-
-        if schedule_data:
-            # Clear the schedule from the JSON file
-            try:
-                os.remove(self.SCHEDULE_FILE_PATH)
-                QMessageBox.information(self, "Schedule Cleared", "The backup schedule has been cleared.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to clear the backup schedule: {e}")
-        else:
-            QMessageBox.information(self, "No Schedule", "No backup schedule to clear.")
-
-    def open_schedule_backup_dialog(self): #UI
-        """Open a dialog to allow the user to schedule backups with a dark-themed UI."""
-        
-        # Create the dialog
-        schedule_dialog = QDialog(self)
-        schedule_dialog.setWindowTitle("📅 Schedule Backup")
-        schedule_dialog.setStyleSheet("""
-            QDialog {
-                background-color: #1E1E1E;  /* Dark background */
-                color: white;  /* White text */
-                border-radius: 10px;
-            }
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #3A9EF5;  /* Light blue text for contrast */
-            }
-            QLineEdit, QComboBox, QPushButton {
-                background-color: #2A2A2A;
-                color: white;
-                border: 1px solid #3A9EF5;
-                border-radius: 5px;
-                padding: 6px;
-            }
-            QLineEdit:focus, QComboBox:focus, QPushButton:focus {
-                border: 2px solid #3A9EF5;
-            }
-            QPushButton {
-                background-color: #3A9EF5;
-                color: white;
-                font-weight: bold;
-                padding: 8px;
-            }
-            QPushButton:hover {
-                background-color: #1D7DD7;
-            }
-        """)
-
-        # Layout
-        layout = QVBoxLayout()
-
-        # Title Label
-        title_label = QLabel("📅 Set Backup Schedule")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(title_label)
-
-        # Dropdown for selecting the interval
-        interval_label = QLabel("⏳ Select Backup Frequency:")
-        interval_combo = QComboBox()
-        interval_combo.addItems(["Daily", "Hourly", "Every X minutes"])
-        
-        layout.addWidget(interval_label)
-        layout.addWidget(interval_combo)
-
-        time_label = QLabel("⏰ Time of Day for Daily Backup (HH:MM):")
-        time_entry = QLineEdit()
-        time_entry.setPlaceholderText("e.g., 00:00")
-
-        # ✅ Apply styling to fix black text on black background
-        time_entry.setStyleSheet("""
-            QLineEdit {
-                background-color: #2A2A2A;  /* Dark background */
-                color: white;  /* White text */
-                border: 1px solid #3A9EF5;
-                border-radius: 5px;
-                padding: 6px;
-            }
-            QLineEdit::placeholder {
-                color: #BBBBBB;  /* Light gray for visibility */
-            }
-        """)
-
-        
-        layout.addWidget(time_label)
-        layout.addWidget(time_entry)
-
-        # Ask the user where to save the backups
-        directory_label = QLabel("📂 Select Backup Location:")
-        layout.addWidget(directory_label)
-
-        directory_button = QPushButton("📁 Choose Directory")
-        layout.addWidget(directory_button)
-
-        # Variable to store the selected directory
-        backup_directory = []
-
-        def choose_directory():
-            """Ask the user where to save the backups and store the directory."""
-            directory = QFileDialog.getExistingDirectory(self, "Select Directory to Save Backup")
-            if directory:
-                backup_directory.append(directory)  # Store the directory
-                directory_button.setText(f"📂 {os.path.basename(directory)}")
-
-        directory_button.clicked.connect(choose_directory)
-
-        # Submit Button to Save the Schedule
-        submit_button = QPushButton("💾 Save Schedule")
-        submit_button.clicked.connect(lambda: self.save_backup_schedule(interval_combo, time_entry, backup_directory, schedule_dialog))
-        layout.addWidget(submit_button)
-
-        # Cancel Button
-        cancel_button = QPushButton("❌ Cancel")
-        cancel_button.clicked.connect(schedule_dialog.close)
-        layout.addWidget(cancel_button)
-
-        schedule_dialog.setLayout(layout)
-        schedule_dialog.exec_()
-
-    def save_backup_schedule(self, interval_combo, time_entry, backup_directory, dialog): #FILE_OPS
-        """Save the selected backup schedule and apply it."""
-        interval = interval_combo.currentText()
-        time_of_day = time_entry.text()
-
-        if not backup_directory:
-            QMessageBox.warning(self, "Input Error", "Please select a backup directory.")
-            return
-
-        if interval == "Daily" and not time_of_day:
-            QMessageBox.warning(self, "Input Error", "Please specify a time of day for the daily backup.")
-            return
-
-        # Save the schedule to a JSON file
-        schedule_data = {
-            "interval": interval,
-            "time_of_day": time_of_day,
-            "backup_directory": backup_directory[0]
-        }
-        self.save_schedule_to_json(schedule_data)
-
-        # Apply the schedule
-        if interval == "Daily":
-            self.schedule_backup(interval="daily", time_of_day=time_of_day, backup_directory=backup_directory[0])
-        elif interval == "Hourly":
-            self.schedule_backup(interval="hourly", backup_directory=backup_directory[0])
-        elif interval == "Every X minutes":
-            minutes = int(time_of_day)  # Assuming the user inputs the minutes as a number
-            self.schedule_backup(interval=f"every {minutes} minutes", backup_directory=backup_directory[0])
-
-        dialog.accept()  # Close the dialog
-        QMessageBox.information(self, "Success", "Backup schedule saved successfully.")
-
-    def load_schedule_on_startup(self): #FILE_OPS
-        """Load the backup schedule from the JSON file and apply it on startup."""
-        schedule_data = self.load_schedule_from_json()
-        if schedule_data:
-            interval = schedule_data.get("interval")
-            time_of_day = schedule_data.get("time_of_day")
-            backup_directory = schedule_data.get("backup_directory")
-
-            if interval == "Daily":
-                self.schedule_backup(interval="daily", time_of_day=time_of_day, backup_directory=backup_directory)
-            elif interval == "Hourly":
-                self.schedule_backup(interval="hourly", backup_directory=backup_directory)
-            elif interval.startswith("every"):
-                minutes = int(interval.split()[1])
-                self.schedule_backup(interval=f"every {minutes} minutes", backup_directory=backup_directory)
-
-    def load_schedule_from_json(self): #FILE_OPS
-        """Load the backup schedule from a JSON file."""
-        if os.path.exists(self.SCHEDULE_FILE_PATH):
-            try:
-                with open(self.SCHEDULE_FILE_PATH, "r") as f:
-                    schedule_data = json.load(f)
-                    return schedule_data
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to load backup schedule: {e}")
-        return None
-
-    def save_schedule_to_json(self, schedule_data): #FILE_OPS
-        """Save the backup schedule to a JSON file."""
-        try:
-            with open(self.SCHEDULE_FILE_PATH, "w") as json_file:
-                json.dump(schedule_data, json_file)
-            print(f"Backup schedule saved: {schedule_data}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save backup schedule: {e}")
-
-    def schedule_backup(self, interval="daily", time_of_day="00:00", backup_directory=None): #FILE_OPS
-        """Schedules the backup to run at a specific time or interval."""
-        if interval == "daily":
-            schedule.every().day.at(time_of_day).do(self.trigger_backup, backup_directory)
-        elif interval == "hourly":
-            schedule.every().hour.do(self.trigger_backup, backup_directory)
-        elif interval.startswith("every"):
-            minutes = int(interval.split()[1])
-            schedule.every(minutes).minutes.do(self.trigger_backup, backup_directory)
-
-        print(f"Backup scheduled: {interval} at {time_of_day} in directory: {backup_directory}")
-
-        # Start the schedule in the background using a thread
-        thread = Thread(target=self.run_scheduled_backups)
-        thread.daemon = True
-        thread.start()
-
-    def run_scheduled_backups(self):  # FILE_OPS
-        """Run the scheduled backups in the background."""
-        while True:
-            schedule.run_pending()  # Execute any scheduled tasks
-            time.sleep(1)  # Sleep to avoid busy-waiting
 
     def trigger_backup(self, backup_directory):  # FILE_OPS - CHECK LOGIC
         """Trigger the backup process at the scheduled time."""
@@ -708,40 +489,6 @@ class DatabaseApp(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to restore database. Error: {e}")
         except Exception as e:
             log_error(f"An unexpected error occurred: {e}")
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
-
-    def export_database_to_excel(self): #FILE_OPS
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Database Export",
-            "",
-            "Excel files (*.xlsx);;All files (*)"
-        )
-        if not file_path:
-            return
-
-        try:
-            # Ensure the file has the correct extension
-            if not file_path.endswith(".xlsx"):
-                file_path += ".xlsx"
-
-            # Get all table names
-            self.cursor.execute("SHOW TABLES;")
-            tables = [table[0] for table in self.cursor.fetchall()]
-
-            # Export each table to a separate sheet
-            with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
-                for table in tables:
-                    self.cursor.execute(f"SELECT * FROM {table};")
-                    data = self.cursor.fetchall()
-                    columns = [desc[0] for desc in self.cursor.description]
-                    df = pd.DataFrame(data, columns=columns)
-                    df.to_excel(writer, sheet_name=table, index=False)
-
-            QMessageBox.information(self, "Success", f"Database exported successfully to {file_path}.")
-        except mariadb.Error as e:
-            QMessageBox.critical(self, "Error", f"Failed to export database: {e}")
-        except Exception as e:
             QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
 
     def view_tables(self): #UI + DATA_ACCESS
@@ -1380,7 +1127,7 @@ class DatabaseApp(QMainWindow):
                         background-color: #CC8400;
                     }
                 """)
-                edit_button.clicked.connect(self.edit_selected_job)
+                edit_button.clicked.connect(lambda: edit_selected_job(self))
                 button_layout.addWidget(edit_button)
 
             # ✅ Delete Button (Slightly Shifted Right)
@@ -2694,46 +2441,6 @@ class DatabaseApp(QMainWindow):
         edit_dialog.setLayout(main_layout)
         edit_dialog.exec_()
 
-    def edit_selected_job(self): #UI
-        """Gets the selected job's ID and opens the Edit Notes dialog."""
-        selected_items = self.table_widget.selectedItems()
-        
-        if not selected_items:
-            QMessageBox.warning(None, "⚠ No Selection", "Please select a row to edit.")
-            return
-
-        # ✅ Get the row index of the selected item
-        selected_row = selected_items[0].row()
-
-        # ✅ Find the Job ID column (assuming it's the first column)
-        job_id = self.table_widget.item(selected_row, 0).text().strip()
-
-        # ✅ Ensure job_id is valid
-        if not job_id.isdigit():
-            QMessageBox.warning(None, "⚠ Invalid Job ID", "Selected Job ID is not a valid number.")
-            return
-
-        # ✅ Call view_notes with the selected Job ID
-        self.view_notes(job_id)
-
-    def ask_for_job_id(self): #UI
-        """Prompts the user for a Job ID and calls view_notes with it."""
-        
-        job_id, ok = QInputDialog.getText(None, "🔍 Search Job", "Enter Job ID:")
-        
-        # ✅ Handle "Cancel" button or empty input
-        if not ok or not job_id.strip():  
-            return  # Exit if user cancels or enters nothing
-
-        # ✅ Ensure `job_id` is a string and validate format
-        job_id = job_id.strip()
-        if not job_id.isdigit():
-            QMessageBox.warning(None, "⚠ Invalid Input", "Job ID must be a number.")
-            return
-        
-        # ✅ Call `view_notes` with the validated Job ID
-        self.view_notes(job_id)
-
     def Customer_report(self): #UI + DATA_ACCESS
         # Step 1: Ask for Job ID
         job_id, ok = QInputDialog.getText(self, "Search Job", "Enter Job ID:")
@@ -3028,10 +2735,7 @@ class DatabaseApp(QMainWindow):
         # Show the Query Window
         query_window.setLayout(layout)
         query_window.exec_()
-
-    def exit_app(self): # UI
-        self.close()
-
+    
     def dashboard_page(self): #UI + DATA_ACCESS
         """Displays the dashboard with income prediction and new features."""
         
@@ -3504,7 +3208,7 @@ class DatabaseApp(QMainWindow):
         def close_graphs_and_return():
             """Closes all open Matplotlib figures and returns to the main menu."""
             plt.close('all')
-            self.reset_window_size()
+            reset_window_size(self)
 
         back_button.clicked.connect(close_graphs_and_return)
         button_layout.addWidget(back_button)
@@ -3512,12 +3216,7 @@ class DatabaseApp(QMainWindow):
         layout.addLayout(button_layout)
         self.dashboard_dialog.setLayout(layout)
         self.dashboard_dialog.exec_()
-
-    def reset_window_size(self): # UI
-        """Reset the window size and return to main menu."""
-        self.dashboard_dialog.close()
-        main_menu_page(self)
-
+   
     def handle_db_error(error, context="Database Error"): #ERROR_UTILS
         """Handles database-related errors in a centralized way."""
         error_message = f"{context}: {error}"
