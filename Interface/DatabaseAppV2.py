@@ -37,7 +37,7 @@ from PyQt5.QtWidgets import (
 # ─────────────────────────────────────────────────────────────────────────────
 # 🧩 Project Modules
 from FILE_OPS.file_ops import (
-    load_settings, load_schedule_on_startup, run_scheduled_backups
+    load_settings, load_schedule_on_startup, run_scheduled_backups, schedule_backup
 )
 from UI.ui import (
    create_login_page, create_settings_page,
@@ -243,54 +243,6 @@ class DatabaseApp(QMainWindow):
             print(f"Backup trigger failed: {e}")
         finally:
             self.is_backup_running = False  # Reset the flag after the backup is completed
-
-    def backup_database(self, backup_directory=None):  # FILE_OPS (MAYBE UTILS)
-        """Perform the actual database backup."""
-        # If no directory is passed, prompt the user to select one
-        if not backup_directory:
-            backup_directory = QFileDialog.getExistingDirectory(self, "Select Backup Directory")
-            if not backup_directory:  # If no directory is selected, exit the function
-                return
-
-        # Generate a timestamped filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = os.path.join(backup_directory, f"database_backup_{timestamp}.sql")
-
-        try:
-            with open(backup_file, "w") as f:
-                # Write commands to disable foreign key checks
-                f.write("SET FOREIGN_KEY_CHECKS = 0;\n\n")
-
-                # Get all table names
-                self.cursor.execute("SHOW TABLES;")
-                tables = [table[0] for table in self.cursor.fetchall()]
-
-                for table in tables:
-                    # Get the CREATE TABLE statement
-                    self.cursor.execute(f"SHOW CREATE TABLE {table};")
-                    create_table_statement = self.cursor.fetchone()[1]
-                    f.write(f"{create_table_statement};\n\n")
-
-                    # Export table data
-                    self.cursor.execute(f"SELECT * FROM {table};")
-                    rows = self.cursor.fetchall()
-                    columns = [desc[0] for desc in self.cursor.description]
-
-                    # Generate INSERT statements
-                    for row in rows:
-                        values = ", ".join(
-                            "'{}'".format(str(value).replace("'", "''")) if value is not None else "NULL"
-                            for value in row
-                        )
-                        f.write(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({values});\n")
-                    f.write("\n")
-
-                # Write commands to re-enable foreign key checks
-                f.write("SET FOREIGN_KEY_CHECKS = 1;\n")
-
-            QMessageBox.information(self, "Success", f"Database backup saved to {backup_file}.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to back up database: {e}")
 
     def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""

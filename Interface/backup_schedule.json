@@ -1,0 +1,5 @@
+{
+    "interval": "Hourly",
+    "time_of_day": "12:00",
+    "backup_directory": "C:/Users/Tom/Desktop"
+}

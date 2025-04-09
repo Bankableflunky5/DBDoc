@@ -1,7 +1,9 @@
 from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMessageBox
 import mariadb
 from error_utils import log_error, handle_db_error
-from PyQt5.QtWidgets import QInputDialog, QLineEdit, QMessageBox
+from PyQt5.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QFileDialog
+import os
+from datetime import datetime
 
 def restore_database(conn, cursor, parent_widget=None):
     db_name, ok = QInputDialog.getText(parent_widget, "Database Name", "Enter the name of the new database:")
@@ -51,7 +53,6 @@ def restore_database(conn, cursor, parent_widget=None):
         handle_db_error(e, context=f"Failed to restore database '{db_name}'")
     except Exception as e:
         log_error(f"An unexpected error occurred: {e}")
-
 
 def change_db_password(database_config, conn):
     """Prompts the user to enter their old password, a new password, and confirm the new password before updating it."""
@@ -154,3 +155,51 @@ def change_db_password(database_config, conn):
     finally:
         if cursor:
             cursor.close()
+
+def backup_database(cursor, backup_directory=None, settings_file="settings.json"):
+    """Perform the actual database backup."""
+    # If no directory is passed, prompt the user to select one
+    if not backup_directory:
+        backup_directory = QFileDialog.getExistingDirectory(None, "Select Backup Directory")
+        if not backup_directory:  # If no directory is selected, exit the function
+            return
+
+    # Generate a timestamped filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(backup_directory, f"database_backup_{timestamp}.sql")
+
+    try:
+        with open(backup_file, "w") as f:
+            # Write commands to disable foreign key checks
+            f.write("SET FOREIGN_KEY_CHECKS = 0;\n\n")
+
+            # Get all table names
+            cursor.execute("SHOW TABLES;")
+            tables = [table[0] for table in cursor.fetchall()]
+
+            for table in tables:
+                # Get the CREATE TABLE statement
+                cursor.execute(f"SHOW CREATE TABLE {table};")
+                create_table_statement = cursor.fetchone()[1]
+                f.write(f"{create_table_statement};\n\n")
+
+                # Export table data
+                cursor.execute(f"SELECT * FROM {table};")
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+
+                # Generate INSERT statements
+                for row in rows:
+                    values = ", ".join(
+                        "'{}'".format(str(value).replace("'", "''")) if value is not None else "NULL"
+                        for value in row
+                    )
+                    f.write(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({values});\n")
+                f.write("\n")
+
+            # Write commands to re-enable foreign key checks
+            f.write("SET FOREIGN_KEY_CHECKS = 1;\n")
+
+        QMessageBox.information(None, "Success", f"Database backup saved to {backup_file}.")
+    except Exception as e:
+        QMessageBox.critical(None, "Error", f"Failed to back up database: {e}")

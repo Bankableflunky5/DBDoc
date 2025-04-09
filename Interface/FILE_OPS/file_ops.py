@@ -172,17 +172,25 @@ def load_schedule_on_startup(parent):
     if interval == "Daily":
         # Apply the schedule using file_ops version
         schedule_backup(
-                            interval=interval,
-                            time_of_day=time_of_day,
-                            backup_directory=backup_directory[0],
-                            backup_func=parent.trigger_backup
-                        )
+            interval=interval,
+            time_of_day=time_of_day,
+            backup_directory=backup_directory[0],  # Assuming backup_directory is a list
+            backup_func=parent.trigger_backup  # Use the parent's function
+        )
     elif interval == "Hourly":
-        parent.schedule_backup(interval="hourly", backup_directory=backup_directory)
+        schedule_backup(
+            interval="hourly",  # Use the "hourly" interval
+            backup_directory=backup_directory,
+            backup_func=parent.trigger_backup  # Use the parent's function
+        )
     elif interval and interval.startswith("every"):
         try:
             minutes = int(interval.split()[1])
-            parent.schedule_backup(interval=f"every {minutes} minutes", backup_directory=backup_directory)
+            schedule_backup(
+                interval=f"every {minutes} minutes",
+                backup_directory=backup_directory,
+                backup_func=parent.trigger_backup  # Use the parent's function
+            )
         except (IndexError, ValueError):
             # Optional: log or warn about malformed interval
             pass
