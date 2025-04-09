@@ -17,8 +17,27 @@ import schedule
 from PyQt5.QtWidgets import QMessageBox, QFileDialog
 
 
+
 SETTINGS_FILE = "settings.json"
 SCHEDULE_FILE_PATH = "backup_schedule.json"
+
+
+def save_database_config(database_config, settings_file):
+    """Save database configuration settings into a JSON file."""
+
+    try:
+        # Save the current password, host, and database information into the config
+        database_config["password"] = database_config["password"]  # You can modify this to match your structure
+        database_config["host"] = database_config["host"]
+        database_config["database"] = database_config["database"]
+
+        with open(settings_file, "w") as file:
+            json.dump(database_config, file)
+
+        return "Settings saved successfully."
+
+    except Exception as e:
+        return f"Failed to save settings: {e}"
 
 def schedule_backup(interval="daily", time_of_day="00:00", backup_directory=None, backup_func=None):
     """

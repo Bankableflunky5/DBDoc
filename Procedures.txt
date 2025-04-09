@@ -1,0 +1,98 @@
+SET FOREIGN_KEY_CHECKS = 1;
+
+DELIMITER $$
+
+CREATE TRIGGER delete_job_password_on_customer_delete
+BEFORE DELETE ON customers
+FOR EACH ROW
+BEGIN
+    IF EXISTS (SELECT 1 FROM jobs WHERE CustomerID = OLD.CustomerID) THEN
+        UPDATE jobs
+        SET Password = NULL
+        WHERE CustomerID = OLD.CustomerID;
+    END IF;
+END $$
+
+DELIMITER ;
+
+
+DELIMITER $$
+
+CREATE TRIGGER delete_communications_on_customer_delete
+BEFORE DELETE ON customers
+FOR EACH ROW
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE job_id_var INT;
+    DECLARE cur CURSOR FOR SELECT JobID FROM jobs WHERE CustomerID = OLD.CustomerID;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+    read_loop: LOOP
+        FETCH cur INTO job_id_var;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        DELETE FROM communications WHERE JobID = job_id_var;
+    END LOOP;
+    CLOSE cur;
+END $$
+
+DELIMITER ;
+
+SET GLOBAL event_scheduler = ON;
+
+DELIMITER $$
+
+CREATE PROCEDURE DeleteOldCustomers()
+BEGIN
+    DECLARE max_customer_id INT;
+
+    -- Step 1: Create a temporary table of customers with no recent jobs
+    CREATE TEMPORARY TABLE temp_old_customers AS 
+    SELECT CustomerID FROM jobs 
+    GROUP BY CustomerID
+    HAVING MAX(StartDate) < NOW() - INTERVAL 1 YEAR;
+
+    -- Step 2: Delete old customers
+    DELETE FROM customers 
+    WHERE CustomerID IN (SELECT CustomerID FROM temp_old_customers);
+
+    -- Step 3: Check if the table is now empty
+    SELECT COUNT(*) INTO max_customer_id FROM customers;
+
+    -- Step 4: If no customers left, reset AUTO_INCREMENT to 1
+    IF max_customer_id = 0 THEN
+        SET @query = 'ALTER TABLE customers AUTO_INCREMENT = 1';
+        PREPARE stmt FROM @query;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    ELSE
+        -- Otherwise, set AUTO_INCREMENT to the next highest CustomerID +1
+        SET @new_auto_increment = (SELECT MAX(CustomerID) + 1 FROM customers);
+        SET @query = CONCAT('ALTER TABLE customers AUTO_INCREMENT = ', @new_auto_increment);
+        PREPARE stmt FROM @query;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+
+    -- Step 5: Remove the temporary table
+    DROP TEMPORARY TABLE IF EXISTS temp_old_customers;
+END $$
+
+DELIMITER ;
+
+
+
+DELIMITER $$
+
+CREATE TRIGGER delete_old_customers_trigger
+AFTER INSERT OR UPDATE ON jobs
+FOR EACH ROW
+BEGIN
+    -- Call the stored procedure to check and delete old customers
+    CALL DeleteOldCustomers();
+END $$
+
+DELIMITER ;
+

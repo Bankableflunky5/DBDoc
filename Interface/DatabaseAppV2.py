@@ -42,12 +42,13 @@ from FILE_OPS.file_ops import (
 from UI.ui import (
    create_login_page, create_settings_page,
     edit_selected_job, keyPressEvent, main_menu_page,
-    refresh_page, reset_window_size, event_filter
+    refresh_page, reset_window_size, event_filter, save_settings
 )
 from UI.splashscreen import SplashScreen
 from UI.initthread import InitializationThread
 
 from error_utils import (log_error, handle_db_error)
+
 
 class DatabaseApp(QMainWindow):
     SETTINGS_FILE = "settings.json"
@@ -83,7 +84,7 @@ class DatabaseApp(QMainWindow):
         self.login_page = create_login_page(self)
         self.settings_page, self.host_entry, self.database_entry = create_settings_page(
             self.database_config,
-            self.save_settings,
+            lambda: save_settings(self.database_config, self.host_entry, self.database_entry, self.password_entry, self.SETTINGS_FILE, self.central_widget, self.login_page),
             lambda: self.central_widget.setCurrentWidget(self.login_page)
         )
 
@@ -99,22 +100,6 @@ class DatabaseApp(QMainWindow):
         )
         self.scheduler_thread.start()
     
-    def save_settings(self): #UI + FILE_OPS
-        """Save settings from the settings page into a JSON file."""
-        try:
-            self.database_config["password"] = self.password_entry.text()
-            self.database_config["host"] = self.host_entry.text()
-            self.database_config["database"] = self.database_entry.text()
-
-            with open(self.SETTINGS_FILE, "w") as file:
-                json.dump(self.database_config, file)
-
-            QMessageBox.information(self, "Settings Saved", "Database configuration saved successfully.")
-            self.central_widget.setCurrentWidget(self.login_page)
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
-
     def login(self):#UI +DATA_ACCESSS
         """Handles the login process securely."""
         username = self.username_entry.text()
@@ -306,150 +291,6 @@ class DatabaseApp(QMainWindow):
             QMessageBox.information(self, "Success", f"Database backup saved to {backup_file}.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to back up database: {e}")
-
-    def change_db_password(self): #DB_UTILS
-        """Prompts the user to enter their old password, a new password, and confirm the new password before updating it."""
-        
-        # Ensure database configuration exists
-        if not hasattr(self, 'database_config') or 'database' not in self.database_config:
-            QMessageBox.critical(self, "Error", "Database configuration is missing!")
-            return
-
-        database_name = self.database_config.get("database")  # Fetch database name
-
-        # Ask for old password
-        old_password, ok = QInputDialog.getText(self, "Change Password", "Enter your current database password:", QLineEdit.Password)
-        
-        if not ok:
-            return
-
-        if not old_password:
-            QMessageBox.warning(self, "Warning", "Current password cannot be empty.")
-            return
-
-        # Ask for new password twice for confirmation
-        new_password, ok = QInputDialog.getText(self, "Change Password", "Enter new database password:", QLineEdit.Password)
-        
-        if not ok:
-            return 
-        
-        if not new_password:
-            QMessageBox.warning(self, "Warning", "New password cannot be empty.")
-            return
-
-        confirm_password, ok = QInputDialog.getText(self, "Change Password", "Confirm new database password:", QLineEdit.Password)
-        
-        if not ok:
-            return
-        
-        if  not confirm_password:
-            QMessageBox.warning(self, "Warning", "Please confirm the new password.")
-            return
-
-        if new_password != confirm_password:
-            QMessageBox.critical(self, "Error", "New passwords do not match. Please try again.")
-            return
-
-        # Ensure there is an active database connection
-        if not hasattr(self, 'conn') or self.conn is None:
-            QMessageBox.critical(self, "Error", "Database connection is not established!")
-            return
-
-        cursor = None  # Ensure cursor is defined before try block
-
-        try:
-            cursor = self.conn.cursor()
-
-            # Step 1: Get the currently logged-in database username
-            cursor.execute("SELECT USER();")  # Returns 'username@host'
-            db_user = cursor.fetchone()[0]  # Example: 'root@localhost'
-            db_username, db_host = db_user.split('@')
-
-            # Step 2: Verify the old password by attempting a reconnection
-            try:
-                temp_conn = mariadb.connect(
-                    user=db_username,
-                    password=old_password,
-                    host=self.database_config.get("host", "localhost"),
-                    database=self.database_config.get("database", "")
-                )
-                temp_conn.close()  # If successful, close temporary connection
-            except mariadb.Error:
-                QMessageBox.critical(self, "Error", "Old password is incorrect.")
-                return
-
-            # Step 3: Update password using ALTER USER
-            cursor.execute(f"ALTER USER '{db_username}'@'{db_host}' IDENTIFIED BY '{new_password}';")
-            self.conn.commit()
-
-            # Step 4: Flush privileges to apply changes
-            cursor.execute("FLUSH PRIVILEGES;")
-            self.conn.commit()
-
-            QMessageBox.information(self, "Success", "Database password changed successfully!")
-
-        except mariadb.Error as e:
-            QMessageBox.critical(self, "Error", f"Failed to change password: {str(e)}")
-
-        finally:
-            if cursor:
-                cursor.close()
-        
-    def restore_database(self): #FILE_OPS (Maybe Utils)
-        # Ask the user for the new database name
-        db_name, ok = QInputDialog.getText(self, "Database Name", "Enter the name of the new database:")
-        if not ok or not db_name:
-            QMessageBox.warning(self, "Input Error", "Database name cannot be empty.")
-            return
-
-        # Ask the user to select a backup file
-        backup_file, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Backup File",
-            "",
-            "SQL Files (*.sql);;All Files (*)"
-        )
-        if not backup_file:
-            QMessageBox.warning(self, "Input Error", "No backup file selected.")
-            return
-
-        try:
-            # Ensure we have a valid database connection
-            if not self.conn:
-                raise Exception("No valid database connection found.")
-            
-            # Create the new database
-            self.cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name};")
-            QMessageBox.information(self, "Success", f"Database '{db_name}' created successfully.")
-
-            # Use the newly created database
-            self.cursor.execute(f"USE {db_name};")
-
-            # Open the backup file and execute its content
-            with open(backup_file, "r") as file:
-                sql_commands = file.read()
-
-            # Split SQL commands by semicolon and execute them
-            for command in sql_commands.split(";"):
-                command = command.strip()  # Remove extra whitespace
-                if command:  # Only execute non-empty commands
-                    try:
-                        print(f"Executing: {command}")  # Debug print
-                        self.cursor.execute(command)
-                    except mariadb.Error as e:
-                        log_error(f"Failed to execute command: {command}. Error: {e}")
-                        continue  # Skip the failed command
-
-            # Commit the changes to the database
-            self.conn.commit()
-            QMessageBox.information(self, "Success", f"Database restored successfully to '{db_name}'.")
-
-        except mariadb.Error as e:
-            log_error(f"Failed to create database '{db_name}': {e}")
-            QMessageBox.critical(self, "Error", f"Failed to restore database. Error: {e}")
-        except Exception as e:
-            log_error(f"An unexpected error occurred: {e}")
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
 
     def view_tables(self): #UI + DATA_ACCESS
         """Displays all tables in the database with a modern UI."""

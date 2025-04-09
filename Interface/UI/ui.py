@@ -24,9 +24,26 @@ from FILE_OPS.file_ops import (
     view_current_schedule,
     clear_current_schedule,
     save_backup_schedule,
-    export_database_to_excel
+    export_database_to_excel, save_database_config
 )
+from db_utils import restore_database, change_db_password
 
+
+def save_settings(parent):
+    """Save settings from the settings page into a JSON file."""
+    # Gather the settings to be saved
+    self.database_config["password"] = self.password_entry.text()
+    self.database_config["host"] = self.host_entry.text()
+    self.database_config["database"] = self.database_entry.text()
+
+    # Call the function in file_ops to save the settings
+    result = save_database_config(self.database_config, self.SETTINGS_FILE)
+
+    if "successfully" in result:
+        QMessageBox.information(self, "Settings Saved", result)
+        self.central_widget.setCurrentWidget(self.login_page)
+    else:
+        QMessageBox.critical(self, "Error", result)
 
 def open_schedule_backup_dialog(parent, save_callback):
     """
@@ -579,11 +596,14 @@ def options_page(parent):
     layout.addWidget(scheduling_options_button)
 
     restore_button = QPushButton("🔄 Create from Backup")
-    restore_button.clicked.connect(parent.restore_database)
+    restore_button.clicked.connect(lambda: restore_database(parent.conn, parent.cursor, parent))
     layout.addWidget(restore_button)
 
     change_password_button = QPushButton("🔑 Change Password")
-    change_password_button.clicked.connect(parent.change_db_password)
+    change_password_button.clicked.connect(
+    lambda: change_db_password(parent.database_config, parent.conn)
+)
+
     layout.addWidget(change_password_button)
 
     back_button = QPushButton("⬅ Back to Main Menu")
