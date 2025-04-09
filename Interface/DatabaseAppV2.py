@@ -36,16 +36,16 @@ from PyQt5.QtWidgets import (
 )
 # ─────────────────────────────────────────────────────────────────────────────
 # 🧩 Project Modules
-from file_ops import (
+from FILE_OPS.file_ops import (
     load_settings, load_schedule_on_startup, run_scheduled_backups
 )
-from ui import (
+from UI.ui import (
    create_login_page, create_settings_page,
     edit_selected_job, keyPressEvent, main_menu_page,
-    refresh_page, reset_window_size
+    refresh_page, reset_window_size, event_filter
 )
-from splashscreen import SplashScreen
-from initthread import InitializationThread
+from UI.splashscreen import SplashScreen
+from UI.initthread import InitializationThread
 
 # error_utils.py
 import logging
@@ -102,9 +102,11 @@ def log_to_file_only(error_message, log_path="error_log.txt"):
 
 
 class DatabaseApp(QMainWindow):
+    SETTINGS_FILE = "settings.json"
     
     def __init__(self): #MAIN
         super().__init__()
+        
 
         # ✅ Load and apply scheduled jobs
         load_schedule_on_startup(self)
@@ -174,9 +176,9 @@ class DatabaseApp(QMainWindow):
 
 
           # Specify the SSL certificate paths (adjust to your paths)
-        #ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
-        #ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
-        #ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
+        ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
+        ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
+        ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
 
         print(f"🔍 Debug (Before MessageBox) - Database: {database}, Host: {host}")  # ✅ Debug print
 
@@ -191,9 +193,9 @@ class DatabaseApp(QMainWindow):
                 password=password,
                 host=host,
                 database=database,
-            #    ssl_ca=ssl_ca,
-             #   ssl_cert=ssl_cert,
-              #  ssl_key=ssl_key
+                ssl_ca=ssl_ca,
+                ssl_cert=ssl_cert,
+                ssl_key=ssl_key
         
             )
             self.cursor = self.conn.cursor()
@@ -869,7 +871,6 @@ class DatabaseApp(QMainWindow):
             self.table_widget.blockSignals(False)  # Allow further edits
 
     def eventFilter(self, source, event): #MAIN
-        from ui import event_filter
         return event_filter(self, source, event)
 
     def update_status_and_database(self, row_idx, new_status): #UI + DATA_ACCESS

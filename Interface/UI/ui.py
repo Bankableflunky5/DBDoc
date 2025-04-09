@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 📦 Standard Library
 import os
-
+from functools import partial
 # ─────────────────────────────────────────────────────────────────────────────
 # 🎨 PyQt5 Core
 from PyQt5.QtCore import (
@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 🧩 Project Modules
-from file_ops import (
+from FILE_OPS.file_ops import (
     view_current_schedule,
     clear_current_schedule,
     save_backup_schedule,
@@ -314,7 +314,6 @@ def main_menu_page(parent):
     menu_layout = QVBoxLayout(menu_frame)
     menu_layout.setSpacing(12)
 
-    from ui import options_page  # local import to avoid circular issues
 
     button_data = [
         ("📁  Tables", parent.view_tables),
@@ -576,8 +575,6 @@ def options_page(parent):
 
     # 🕓 Backup Schedule Button
     scheduling_options_button = QPushButton("⏰ Backup Schedule Options")
-    from functools import partial
-    from ui import open_scheduling_options_dialog
     scheduling_options_button.clicked.connect(partial(open_scheduling_options_dialog, parent))
     layout.addWidget(scheduling_options_button)
 
