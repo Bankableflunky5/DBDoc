@@ -44,8 +44,12 @@ from UI.ui import (
 from UI.splashscreen import SplashScreen
 from UI.initthread import InitializationThread
 
-from data_access import fetch_tables, connect_to_database, fetch_data
+from data_access import fetch_tables, connect_to_database, fetch_data,  get_primary_key_column, check_primary_key_exists, check_duplicate_primary_key, update_column, update_primary_key, update_auto_increment_if_needed
+
 from error_utils import handle_db_error, log_error
+from data_access import update_status, fetch_primary_key_column
+from data_access import fetch_table_data_with_columns
+from UI.ui import create_table_view_dialog  # You’ll create this in ui.py
 
 
 
@@ -63,6 +67,7 @@ class DatabaseApp(QMainWindow):
         self.is_refreshing = False
         self.is_backup_running = False
         self.is_adding_new_record = False
+        
 
         self.setWindowTitle("The Laptop Doctor")
         self.setGeometry(100, 100, 500, 500)
@@ -127,491 +132,192 @@ class DatabaseApp(QMainWindow):
     def eventFilter(self, source, event): #MAIN
             return event_filter(self, source, event)
 
-    def update_table_offset(self, change): #MAIN
+    def update_table_offset(self, change, prev_button, next_button):
+        # ✅ Compute new offset safely
         new_offset = max(0, self.table_offset + change)
-        self.table_offset = new_offset  # update the internal state
+        self.table_offset = new_offset  # ✅ Store for future pages
 
-        self.table_offset = update_table_offset_ui(
+        print(f"🔄 Current offset is now: {self.table_offset}")  # Debug log
+
+        # ✅ Refresh the table with the correct offset
+        update_table_offset_ui(
             table_widget=self.table_widget,
             pagination_label=self.pagination_label,
-            prev_button=self.prev_button,
-            next_button=self.next_button,
-            fetch_function=self.fetch_data,
+            prev_button=prev_button,
+            next_button=next_button,
+            fetch_function=self.fetch_data,  # Must reflect the new offset!
             table_name=self.table_name,
-            current_offset=new_offset,
+            current_offset=self.table_offset,
             limit=self.table_limit,
-            change=0,
-            refresh_callback=lambda: refresh_page(self, offset=new_offset),
+            change=0,  # We've already applied it
+            refresh_callback=lambda: refresh_page(self),
             parent=self
         )
 
-    def update_database(self, item): #UI + DATA_ACCESS
-        """Ensures only valid records are updated, and deleted rows are ignored."""
-        self.table_widget.blockSignals(True)  # Prevent infinite recursion
+    def update_database(self, item): #MAIN
+        self.table_widget.blockSignals(True)
 
         try:
             row = item.row()
             column = item.column()
-            new_value = item.text().strip()  # The new value entered in the UI
+            new_value = item.text().strip() or None
 
-            # If the new value is empty, set it to None (NULL in SQL)
-            if not new_value:
-                new_value = None
-
-            # Fetch primary key dynamically from the database
-            self.cursor.execute(f"SHOW KEYS FROM {self.current_table_name} WHERE Key_name = 'PRIMARY'")
-            primary_key_column = self.cursor.fetchone()
-
-            if not primary_key_column:
-                print("❌ ERROR: No primary key found for this table.")
-                self.table_widget.blockSignals(False)
+            pk_column = get_primary_key_column(self.cursor, self.current_table_name)
+            if not pk_column:
+                print("❌ ERROR: No primary key found.")
                 return
 
-            primary_key_column = primary_key_column[4]  # Get column name of PK
-
-            # Identify the correct column index for the primary key
-            primary_key_index = None
-            for col_idx in range(self.table_widget.columnCount()):
-                if self.table_widget.horizontalHeaderItem(col_idx).text() == primary_key_column:
-                    primary_key_index = col_idx
-                    break
-
-            if primary_key_index is None:
-                print(f"❌ ERROR: Primary key column '{primary_key_column}' not found in table UI.")
-                self.table_widget.blockSignals(False)
+            pk_index = next(
+                (i for i in range(self.table_widget.columnCount())
+                if self.table_widget.horizontalHeaderItem(i).text() == pk_column),
+                None
+            )
+            if pk_index is None:
+                print(f"❌ ERROR: PK column '{pk_column}' not found in UI.")
                 return
 
-            # Retrieve old primary key value from the UI (before any change happens)
-            old_primary_key_item = self.table_widget.item(row, primary_key_index)
-            if old_primary_key_item:
-                # The old primary key stored in UserRole (not the displayed value)
-                old_primary_key = old_primary_key_item.data(Qt.UserRole)  # Retrieve the "old" value from UserRole
-                if not old_primary_key:
-                    old_primary_key = old_primary_key_item.text().strip()  # Fallback to UI text value
-            else:
-                print(f"❌ ERROR: No primary key item found in row {row}. Skipping update.")
-                self.table_widget.blockSignals(False)
+            pk_item = self.table_widget.item(row, pk_index)
+            if not pk_item:
+                print(f"❌ ERROR: No PK item found in row {row}.")
                 return
 
-            print(f"Old primary key retrieved from UI: '{old_primary_key}' (Type: {type(old_primary_key)})")
+            old_pk = pk_item.data(Qt.UserRole) or pk_item.text().strip()
 
-            # Now let's fetch the old primary key from the database for comparison
-            self.cursor.execute(f"SELECT {primary_key_column} FROM {self.current_table_name} WHERE {primary_key_column} = %s", (old_primary_key,))
-            db_old_primary_key = self.cursor.fetchone()
-
-            if db_old_primary_key:
-                db_old_primary_key = db_old_primary_key[0]
-                print(f"Old primary key retrieved from the database: {db_old_primary_key} (Type: {type(db_old_primary_key)})")
-            else:
-                print(f"❌ ERROR: Old primary key {old_primary_key} not found in the database. Skipping update.")
-                self.table_widget.blockSignals(False)
+            db_old_pk = check_primary_key_exists(self.cursor, self.current_table_name, pk_column, old_pk)
+            if db_old_pk is None:
+                print(f"❌ ERROR: Old PK {old_pk} not found in DB.")
                 return
 
-            # If value hasn't changed, do nothing
-            if new_value == str(db_old_primary_key):
-                print(f"❌ New primary key is the same as the old one ({db_old_primary_key}). Skipping update.")
-                self.table_widget.blockSignals(False)
+            if new_value == str(db_old_pk):
+                print("❌ New value is same as current. Skipping.")
                 return
 
-            # If updating the primary key, we need to check if the new value already exists in the DB
-            if column == primary_key_index:
-                print(f"🔄 Attempting to update primary key from {db_old_primary_key} to {new_value}...")
-
-                # Check if the new primary key already exists
-                self.cursor.execute(f"SELECT COUNT(*) FROM {self.current_table_name} WHERE {primary_key_column} = %s", (new_value,))
-                if self.cursor.fetchone()[0] > 0:
-                    print(f"❌ Primary key {new_value} already exists. Update aborted.")
-                    self.table_widget.blockSignals(False)
-                    self.table_widget.item(row, primary_key_index).setText(str(db_old_primary_key))  # Revert change
+            # Updating PK
+            if column == pk_index:
+                if check_duplicate_primary_key(self.cursor, self.current_table_name, pk_column, new_value):
+                    print(f"❌ PK {new_value} already exists.")
+                    pk_item.setText(str(db_old_pk))  # revert
                     return
 
-                # Perform the update for the primary key
-                query = f"UPDATE {self.current_table_name} SET {primary_key_column} = %s WHERE {primary_key_column} = %s"
-                self.cursor.execute(query, (new_value, db_old_primary_key))
-                self.conn.commit()
-                print(f"✅ Successfully updated primary key from {db_old_primary_key} to {new_value}.")
-
-                # Update stored primary key in the UI and UserRole
-                old_primary_key_item.setData(Qt.UserRole, new_value)  # Store the new primary key in UserRole
-                print(f"Updated UserRole to: {new_value}")
-                old_primary_key_item.setText(str(new_value))  # Update displayed value
+                update_primary_key(self.cursor, self.conn, self.current_table_name, pk_column, db_old_pk, new_value)
+                pk_item.setData(Qt.UserRole, new_value)
+                pk_item.setText(str(new_value))
+                print(f"✅ PK updated from {db_old_pk} → {new_value}")
 
             else:
-                # For regular column updates (not primary key)
-                column_name = self.table_widget.horizontalHeaderItem(column).text()
-                print(f"Updating {self.current_table_name} - {column_name}: {new_value} where {primary_key_column} = {db_old_primary_key}")
+                col_name = self.table_widget.horizontalHeaderItem(column).text()
+                update_column(self.cursor, self.conn, self.current_table_name, col_name, new_value, pk_column, db_old_pk)
+                print(f"✅ Column '{col_name}' updated to '{new_value}'.")
 
-                # Ensure that the value is NULL if it is empty
-                query = f"UPDATE {self.current_table_name} SET {column_name} = %s WHERE {primary_key_column} = %s"
-                self.cursor.execute(query, (new_value, db_old_primary_key))
-                self.conn.commit()
-
-                print("✅ Database updated successfully.")
-
-            # After the update, check if we need to update the AUTO_INCREMENT value
-            self.cursor.execute(f"SELECT MAX({primary_key_column}) FROM {self.current_table_name}")
-            highest_primary_key = self.cursor.fetchone()[0]
-
-            if highest_primary_key is not None:
-                print(f"Highest primary key after update: {highest_primary_key}")
-
-                # Check the current AUTO_INCREMENT value
-                self.cursor.execute(f"SHOW TABLE STATUS LIKE %s", (self.current_table_name,))
-                table_status = self.cursor.fetchone()
-
-                if table_status:
-                    auto_increment = table_status[10]  # The `AUTO_INCREMENT` value from the table status
-                    print(f"Current AUTO_INCREMENT: {auto_increment}")
-
-                    # Update AUTO_INCREMENT to the highest primary key + 1
-                    new_auto_increment = highest_primary_key + 1
-                    if new_auto_increment != auto_increment:
-                        self.cursor.execute(f"ALTER TABLE {self.current_table_name} AUTO_INCREMENT = {new_auto_increment}")
-                        self.conn.commit()
-                        print(f"✅ AUTO_INCREMENT updated to {new_auto_increment}.")
-                    else:
-                        print(f"❌ AUTO_INCREMENT value is already correctly set.")
-                else:
-                    print(f"❌ ERROR: Could not retrieve table status for {self.current_table_name}.")
-            else:
-                print(f"❌ ERROR: Could not retrieve highest primary key.")
+            # Handle auto_increment if needed
+            update_auto_increment_if_needed(self.cursor, self.conn, self.current_table_name, pk_column)
 
         except Exception as e:
             print(f"❌ ERROR updating database: {e}")
-            if column == primary_key_index:
-                self.table_widget.item(row, primary_key_index).setText(str(db_old_primary_key))  # Revert failed key change
+            if column == pk_index:
+                self.table_widget.item(row, pk_index).setText(str(db_old_pk))
 
         finally:
-            self.table_widget.blockSignals(False)  # Allow further edits
+            self.table_widget.blockSignals(False)
 
-    def update_status_and_database(self, row_idx, new_status): #UI + DATA_ACCESS
-        """Handles the change of status and updates the database."""
+    def update_status_and_database(self, row_idx, new_status): #MAIN
         try:
-            # Get the primary key of the row
-            primary_key_column = self.table_widget.horizontalHeaderItem(0).text()  # Assuming the primary key is the first column
-            primary_key_item = self.table_widget.item(row_idx, 0)  # Get the primary key item in the row
+            # Get the primary key value from the UI
+            primary_key_item = self.table_widget.item(row_idx, 0)
             if not primary_key_item:
-                print(f"❌ ERROR: No primary key item found in row {row_idx}. Skipping update.")
+                print(f"❌ ERROR: No primary key item found in row {row_idx}.")
                 return
-            
-            primary_key_value = primary_key_item.data(Qt.UserRole)  # Get the primary key value stored in UserRole
-            if not primary_key_value:
-                primary_key_value = primary_key_item.text().strip()  # Fallback to UI text value
-            
-            # Fetch the primary key column name dynamically
-            self.cursor.execute(f"SHOW KEYS FROM {self.current_table_name} WHERE Key_name = 'PRIMARY'")
-            primary_key_column = self.cursor.fetchone()[4]  # Get the column name for the primary key
-            
-            # Check if status is being updated to 'Completed' and update the end_date accordingly
-            if new_status == "Completed":
-                current_datetime = QDateTime.currentDateTime().toString('yyyy-MM-dd HH:mm:ss')  # Get current datetime in MySQL format
-                # Update the end_date to current datetime in addition to status
-                update_query = f"""
-                    UPDATE {self.current_table_name} 
-                    SET status = %s, EndDate = %s 
-                    WHERE {primary_key_column} = %s
-                """
-                self.cursor.execute(update_query, (new_status, current_datetime, primary_key_value))
+
+            pk_value = primary_key_item.data(Qt.UserRole) or primary_key_item.text().strip()
+
+            # Fetch primary key column name dynamically
+            pk_column = fetch_primary_key_column(self.cursor, self.current_table_name)
+            if not pk_column:
+                print(f"❌ ERROR: No primary key column found for {self.current_table_name}")
+                return
+
+            success = update_status(
+                cursor=self.cursor,
+                conn=self.conn,
+                table_name=self.current_table_name,
+                pk_column=pk_column,
+                pk_value=pk_value,
+                new_status=new_status
+            )
+
+            if success:
+                print(f"✅ Status updated to '{new_status}' for {pk_column} = {pk_value}")
+                self.refresh_table()
             else:
-                # If status is not 'Completed', just update the status
-                update_query = f"UPDATE {self.current_table_name} SET status = %s WHERE {primary_key_column} = %s"
-                self.cursor.execute(update_query, (new_status, primary_key_value))
-            
-            self.conn.commit()
-            print(f"✅ Status updated to '{new_status}' for {primary_key_column} = {primary_key_value}.")
-            
-            # Call refresh_table() to reload the table data after the status change
-            self.refresh_table()
+                print(f"❌ Failed to update status.")
 
         except Exception as e:
-            print(f"❌ ERROR updating status in database: {e}")
-   
-    def view_table_data(self, table_name): #UI + DATA_ACCESS
-        """Displays and manages data in a selected table with modern UI, search, inline editing, and pagination."""
+            print(f"❌ ERROR in update_status_and_database: {e}")
+
+    def view_table_data(self, table_name): #MAIN
         self.table_name = table_name
+        self.current_table_name = table_name
+        self.table_offset = 0
+        self.table_limit = 50
+
         try:
-            # ✅ Store pagination values
-            self.table_offset = 0
-            self.table_limit = 50
-            self.current_table_name = table_name
+            data, columns = fetch_table_data_with_columns(
+                self.cursor,
+                table_name,
+                limit=self.table_limit,
+                offset=self.table_offset
+            )
 
-            data = fetch_data(self.cursor, table_name, self.table_limit, self.table_offset)
-           
-            
-
-            #if not data:
-                #QMessageBox.information(self, "No Data", "No records found in this table.")
-                #return
-
-            columns = [desc[0] for desc in self.cursor.description]
-
-            dialog = QDialog()
-            dialog.setWindowFlags(Qt.Window)
-            dialog.setWindowTitle(f"{table_name} Data")
-            dialog.setGeometry(200, 200, 1100, 700)
-            dialog.setStyleSheet("background-color: #2E2E2E; color: #FFFFFF;")
-
-
-            main_layout = QVBoxLayout()
-
-            # **Title Label**
-            title = QLabel(f"📊 {table_name} Data")
-            title.setAlignment(Qt.AlignCenter)
-            title.setStyleSheet("color: #3A9EF5; padding: 10px;")
-            main_layout.addWidget(title)
-
-            # ✅ **Create the Refresh Button**
-            self.refresh_button = QPushButton("🔃 Refresh")
-            self.refresh_button.setStyleSheet("background-color: #3A9EF5; color: white; padding: 8px; border-radius: 5px;")
-            self.refresh_button.clicked.connect(self.refresh_table)  # ✅ Connect to class-level method
-
-
-            # **Search Section**
-            search_layout = QHBoxLayout()
-            search_label = QLabel("🔍 Search by:")
-            search_label.setStyleSheet("padding-right: 10px;")
-
-            column_dropdown = QComboBox()
-            column_dropdown.addItems(columns)
-            column_dropdown.setStyleSheet("background-color: #444444; color: white; padding: 5px; border-radius: 5px;")
-
-            search_entry = QLineEdit()
-            search_entry.setPlaceholderText("Enter search query...")
-            search_entry.setStyleSheet("background-color: #444444; color: white; padding: 5px; border-radius: 5px;")
-
-            # ✅ **Use an Icon for the Clear Button**
-            clear_action = QAction(search_entry)
-            clear_action.setIcon(search_entry.style().standardIcon(QStyle.SP_DialogCloseButton))  # Use standard close icon
-            clear_action.triggered.connect(search_entry.clear)  # Clears text when clicked
-            search_entry.addAction(clear_action, QLineEdit.TrailingPosition)  # Adds 'X' to the right sid
-
-            refresh_button = QPushButton("🔃")
-            refresh_button.setStyleSheet("background-color: #3A9EF5; color: white; padding: 8px; border-radius: 5px;")
-            refresh_button.clicked.connect(self.refresh_table)  # ✅ Call the function correctly
-
-
-            search_button = QPushButton("Search 🔎")
-            search_button.setStyleSheet("background-color: #3A9EF5; color: white; padding: 8px; border-radius: 5px;")
-            search_button.clicked.connect(lambda: self.search_table(column_dropdown.currentText(), search_entry.text()))
-
-            search_layout.addWidget(search_label)
-            search_layout.addWidget(column_dropdown)
-            search_layout.addWidget(search_entry)
-            search_layout.addWidget(search_button)
-            search_layout.addWidget(refresh_button)
-
-            main_layout.addLayout(search_layout)
-
-            # **Table Section**
             self.table_widget = QTableWidget()
             self.table_widget.setColumnCount(len(columns))
             self.table_widget.setHorizontalHeaderLabels(columns)
             self.table_widget.setAlternatingRowColors(True)
-            self.table_widget.setStyleSheet("""
-                QTableWidget {
-                    background-color: #2E2E2E;
-                    color: white;
-                    gridline-color: #3A9EF5;
-                    selection-background-color: #3A9EF5;
-                    selection-color: white;
-                }
-                QHeaderView::section {
-                    background-color: #3A9EF5;
-                    color: white;
-                    font-weight: bold;
-                    padding: 5px;
-                    border: 1px solid #3A9EF5;
-                }
-                QTableWidget::item {
-                    background-color: #444444;
-                    color: white;
-                }
-                QTableWidget::item:alternate {
-                    background-color: #3A3A3A;
-                }
-            """)
+            self.table_widget.itemChanged.connect(self.update_database)
 
+            # ✅ Load table data
             load_table(
                 table_widget=self.table_widget,
                 cursor=self.cursor,
                 table_name=table_name,
                 update_status_callback=self.update_status_and_database,
                 table_offset=self.table_offset,
-                limit=50,
-                event_filter=self  # optional, only if you were using installEventFilter
+                limit=self.table_limit,
+                event_filter=self
             )
 
-            self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-            self.table_widget.verticalHeader().setVisible(False)
-
-            scroll_area = QScrollArea()
-            scroll_area.setWidgetResizable(True)
-            scroll_area.setWidget(self.table_widget)
-            main_layout.addWidget(scroll_area)
-
-             # ✅ **Connect QTableWidgetItem Edits to `update_database()`**
-            self.table_widget.itemChanged.connect(self.update_database)
-
-            # **Pagination Controls**
-            pagination_layout = QHBoxLayout()
-
-            # ✅ **Add Spacer to Center the Pagination Controls**
-            pagination_layout.addStretch(1)
-
-            # ✅ Previous Button (⬅ Prev)
-            self.prev_button = QPushButton("⬅ Prev")
-            self.prev_button.setFixedSize(120, 40)  # Standardized Button Size
-            self.prev_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #3A9EF5; 
-                    color: white; 
-                    font-size: 14px; 
-                    font-weight: bold; 
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #307ACC;
-                }
-            """)
-            pagination_layout.addWidget(self.prev_button)
-
-            # ✅ Calculate Current Page Number
+            self.pagination_label = QLabel()
             current_page = (self.table_offset // self.table_limit) + 1
+            self.pagination_label.setText(f"Page {current_page}")
 
-            # ✅ Page Info Label (Updated to Show Page Number)
-            self.pagination_label = QLabel(f"Page {current_page}")
-            self.pagination_label.setAlignment(Qt.AlignCenter)
-            self.pagination_label.setStyleSheet("font-size: 14px; font-weight: bold; color: white; padding: 0 15px;")
-            pagination_layout.addWidget(self.pagination_label)
-
-            # ✅ Next Button (Next ➡)
-            self.next_button = QPushButton("Next ➡")
-            self.next_button.setFixedSize(120, 40)
-            self.next_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #3A9EF5; 
-                    color: white; 
-                    font-size: 14px; 
-                    font-weight: bold; 
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #307ACC;
-                }
-            """)
-            pagination_layout.addWidget(self.next_button)
-
-            # ✅ **Add Another Spacer to Keep Pagination Centered**
-            pagination_layout.addStretch(1)
-
-            # ✅ Apply Pagination Layout
-            main_layout.addLayout(pagination_layout)
-
-            # ✅ Connect Pagination Buttons
-            self.prev_button.clicked.connect(lambda: self.update_table_offset(-self.table_limit))
-            self.next_button.clicked.connect(lambda: self.update_table_offset(self.table_limit))
+            # ✅ Create the dialog UI (next step)
+            self.dialog, prev_btn, next_btn, self.refresh_button = create_table_view_dialog(
+            table_name=table_name,
+            columns=columns,
+            table_widget=self.table_widget,
+            pagination_label=self.pagination_label,
+            refresh_handler=self.refresh_table,
+            search_handler=lambda col, val: self.search_table(col, val),
+            prev_handler=lambda: self.update_table_offset(
+                -self.table_limit,
+                prev_button=prev_btn,
+                next_button=next_btn
+            ),
+            next_handler=lambda: self.update_table_offset(
+                self.table_limit,
+                prev_button=prev_btn,
+                next_button=next_btn
+            ),
+            add_handler=lambda: self.add_record(table_name, columns, self.table_widget),
+            edit_handler=lambda: edit_selected_job(self),
+            delete_handler=lambda: self.delete_record(table_name, self.table_widget, columns[0]),
+            close_handler=lambda: self.dialog.close()
+        )
 
 
+            self.dialog.exec_()
 
-            # **Buttons Section**
-            button_layout = QHBoxLayout()
-
-            # ✅ **Add Stretchable Spacer (Keeps Close Button Right)**
-            button_layout.addStretch(1)
-
-            # ✅ **Add a Small Fixed Spacer (Shifts Buttons Slightly to the Right)**
-            small_spacer = QSpacerItem(160, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)  # Small 20px shift
-            button_layout.addSpacerItem(small_spacer)
-
-            # ✅ Add Button (Slightly Shifted Right)
-            add_button = QPushButton("➕ Add Record")
-            add_button.setFixedSize(150, 40)
-            add_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #3A9EF5; 
-                    color: white; 
-                    font-size: 14px; 
-                    font-weight: bold; 
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #307ACC;
-                }
-            """)
-            add_button.clicked.connect(lambda: self.add_record(table_name, columns, self.table_widget))
-            button_layout.addWidget(add_button)
-
-            # ✅ Edit Button (Slightly Shifted Right, Only for Jobs Table)
-            if table_name.lower() == "jobs":
-                edit_button = QPushButton("📝 Edit Job")
-                edit_button.setFixedSize(150, 40)
-                edit_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #FFA500; 
-                        color: white; 
-                        font-size: 14px; 
-                        font-weight: bold; 
-                        border-radius: 5px;
-                    }
-                    QPushButton:hover {
-                        background-color: #CC8400;
-                    }
-                """)
-                edit_button.clicked.connect(lambda: edit_selected_job(self))
-                button_layout.addWidget(edit_button)
-
-            # ✅ Delete Button (Slightly Shifted Right)
-            delete_button = QPushButton("🗑 Delete Record")
-            delete_button.setFixedSize(150, 40)
-            delete_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #D9534F; 
-                    color: white; 
-                    font-size: 14px; 
-                    font-weight: bold; 
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #C9302C;
-                }
-            """)
-            delete_button.clicked.connect(lambda: self.delete_record(table_name, self.table_widget, columns[0]))
-            button_layout.addWidget(delete_button)
-
-            # ✅ **Add Another Spacer to Keep Buttons Balanced**
-            button_layout.addStretch(1)
-
-            # ✅ Close Button (Remains on the Right)
-            close_button = QPushButton("❌ Close")
-            close_button.setFixedSize(150, 40)
-            close_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #444444; 
-                    color: white; 
-                    font-size: 14px; 
-                    font-weight: bold; 
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #666666;
-                }
-            """)
-            close_button.clicked.connect(dialog.close)
-            button_layout.addWidget(close_button)
-
-            # ✅ Apply Button Layout
-            main_layout.addLayout(button_layout)
-
-
-
-
-
-            dialog.setLayout(main_layout)
-            dialog.exec_()
-
-
-        except mariadb.Error as e:
-            QMessageBox.critical(None, "Error", f"Failed to retrieve data from {table_name}: {e}")
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"Failed to load data for {table_name}: {e}")
 
     def search_table(self, column, search_text):  # UI + DATA_ACCESS
         """Search for records in the selected table without pagination restrictions."""
@@ -637,29 +343,20 @@ class DatabaseApp(QMainWindow):
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"❌ Database Error: {e}")
 
-    def refresh_table(self): #UI + DATA_ACCESS
-        """Refresh the table after clearing and fetching fresh data from the database."""
-        
+    def refresh_table(self):
+        """UI logic to refresh the table."""
         if self.is_refreshing:
             print("❌ Refresh is already in progress. Please wait...")
             return
-        
+
         self.is_refreshing = True
         self.refresh_button.setEnabled(False)
 
         try:
-            # Temporarily disconnect `itemChanged` to avoid unwanted updates during refresh
             self.table_widget.itemChanged.disconnect(self.update_database)
+            self.table_widget.setRowCount(0)
 
-            # Clear the table widget (only clear rows, not the headers)
-            self.table_widget.setRowCount(0)  # Clear any existing rows
-            
-            # Close and reopen the cursor to ensure a fresh query session
-            self.cursor.close()  # Close the old cursor
-            self.cursor = self.conn.cursor()  # Open a new cursor
-            self.conn.commit()  # Commit any changes before closing the previous cursor
-
-            # Now, simply call load_table to reload the data
+            # ✅ Just call load_table as it was used in view_table_data
             load_table(
                 table_widget=self.table_widget,
                 cursor=self.cursor,
@@ -667,18 +364,16 @@ class DatabaseApp(QMainWindow):
                 update_status_callback=self.update_status_and_database,
                 table_offset=self.table_offset,
                 limit=50,
-                event_filter=self  # optional
+                event_filter=self
             )
-
 
             print(f"✅ Table {self.current_table_name} refreshed successfully.")
 
-        except mariadb.Error as e:
+        except Exception as e:
             print(f"❌ ERROR: Failed to refresh table {self.current_table_name}: {e}")
             QMessageBox.critical(self, "Database Error", f"Failed to refresh table: {e}")
 
         finally:
-            # Reconnect itemChanged after refreshing
             self.table_widget.itemChanged.connect(self.update_database)
             self.is_refreshing = False
             self.refresh_button.setEnabled(True)

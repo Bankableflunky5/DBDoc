@@ -68,6 +68,11 @@ from data_access import close_connection
 from PyQt5.QtWidgets import QTableWidgetItem, QComboBox, QHeaderView
 from PyQt5.QtCore import Qt
 from data_access import fetch_table_data, fetch_primary_key_column
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QLineEdit,
+    QComboBox, QAction, QSizePolicy, QSpacerItem, QStyle
+)
+from PyQt5.QtCore import Qt
 
 
 
@@ -1459,6 +1464,12 @@ def handle_logout(ui_instance):
     QMessageBox.information(ui_instance, "Logged Out", "✅ You have been successfully logged out.")
 
 def load_table(table_widget, cursor, table_name, update_status_callback, table_offset=0, limit=50, event_filter=None):
+
+        # ✅ Refresh the connection
+    if hasattr(cursor, "connection"):
+        cursor.connection.commit()  # Pull latest committed data
+        cursor = cursor.connection.cursor()  # Create a fresh cursor
+        
     data = fetch_table_data(cursor, table_name, limit, table_offset)
     total_rows = len(data)
 
@@ -1518,35 +1529,225 @@ def update_table_offset_ui(
     table_name,
     current_offset,
     limit,
-    change,
+    change,  # <- not needed anymore
     refresh_callback,
     parent=None
 ):
-    old_offset = current_offset
-    new_offset = max(0, old_offset + change)
-    data = fetch_function(table_name, limit, new_offset)
+    # ✅ Fetch new page data based on fixed offset
+    data = fetch_function(table_name, limit, current_offset)
     total_rows = len(data)
 
-    if not data and change > 0:
+    # ✅ Stop if you're at the end
+    if not data and current_offset > 0:
         if parent:
             QMessageBox.information(parent, "End of Data", "No more records to load.")
-        return old_offset  # Cancel pagination
+        return
 
+    # ✅ Clear and refill table
     table_widget.clearContents()
     table_widget.setRowCount(total_rows)
-
-    # 🔁 Refresh widgets, dropdowns, etc.
     refresh_callback()
 
-    # Reset scroll
+    # ✅ Reset scroll bar
     table_widget.verticalScrollBar().setValue(0)
 
-    # Update pagination label
-    current_page = (new_offset // limit) + 1
+    # ✅ Update page label
+    current_page = (current_offset // limit) + 1
     pagination_label.setText(f"Page {current_page}")
 
-    # Enable/disable pagination buttons
-    prev_button.setEnabled(new_offset > 0)
+    # ✅ Update buttons
+    prev_button.setEnabled(current_offset > 0)
     next_button.setEnabled(total_rows == limit)
 
-    return new_offset
+def create_table_view_dialog(
+    table_name,
+    columns,
+    table_widget,
+    pagination_label,
+    refresh_handler,
+    search_handler,
+    prev_handler,
+    next_handler,
+    add_handler,
+    edit_handler,
+    delete_handler,
+    close_handler
+):
+    dialog = QDialog()
+    dialog.setWindowFlags(Qt.Window)
+    dialog.setWindowTitle(f"{table_name} Data")
+    dialog.showMaximized()
+    dialog.setFont(QFont("Segoe UI", 10))
+    dialog.setStyleSheet("background-color: #1F1F1F; color: #E0E0E0;")
+
+    main_layout = QVBoxLayout()
+
+    # Title
+    title = QLabel(f"📊 {table_name} Data")
+    title.setAlignment(Qt.AlignCenter)
+    title.setStyleSheet("color: #2D9CDB; padding: 20px; font-size: 20px;")
+    main_layout.addWidget(title)
+
+    # Search
+    search_layout = QHBoxLayout()
+    search_label = QLabel("🔍 Search by:")
+    search_label.setFont(QFont("Segoe UI", 10))
+
+    column_dropdown = QComboBox()
+    column_dropdown.addItems(columns)
+    column_dropdown.setFont(QFont("Segoe UI", 10))
+    # 🔽 Set style right after creation
+    column_dropdown.setStyleSheet("""
+        background-color: #2A2A2A;
+        color: #E0E0E0;
+        padding: 6px;
+        border-radius: 5px;
+        border: 1px solid #3A3A3A;
+    """)
+
+    search_entry = QLineEdit()
+    search_entry.setPlaceholderText("Enter search query...")
+    search_entry.setFont(QFont("Segoe UI", 10))
+    # 🔽 Set style here too
+    search_entry.setStyleSheet("""
+        background-color: #2A2A2A;
+        color: #E0E0E0;
+        padding: 6px;
+        border-radius: 5px;
+        border: 1px solid #3A3A3A;
+    """)
+
+    clear_action = QAction(search_entry)
+    clear_action.setIcon(search_entry.style().standardIcon(QStyle.SP_DialogCloseButton))
+    clear_action.triggered.connect(search_entry.clear)
+    search_entry.addAction(clear_action, QLineEdit.TrailingPosition)
+
+    search_button = QPushButton("Search 🔎")
+    search_button.clicked.connect(lambda: search_handler(column_dropdown.currentText(), search_entry.text()))
+    refresh_button = QPushButton("🔃")
+    refresh_button.clicked.connect(refresh_handler)
+
+    for btn in [search_button, refresh_button]:
+        btn.setFont(QFont("Segoe UI", 10))
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2D9CDB;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #2385BA;
+            }
+        """)
+
+    search_layout.addWidget(search_label)
+    search_layout.addWidget(column_dropdown)
+    search_layout.addWidget(search_entry)
+    search_layout.addWidget(search_button)
+    search_layout.addWidget(refresh_button)
+    main_layout.addLayout(search_layout)
+
+    # Table
+    scroll_area = QScrollArea()
+    scroll_area.setWidgetResizable(True)
+
+    table_widget.setStyleSheet("""
+    QTableWidget {
+        background-color: #2A2A2A;
+        color: #E0E0E0;
+        gridline-color: #3A3A3A;
+        selection-background-color: #2D9CDB;
+        selection-color: #FFFFFF;
+        font-size: 10pt;
+    }
+    QTableWidget::item:alternate {
+        background-color: #242424;
+    }
+    QHeaderView::section {
+        background-color: #2D2D2D;
+        color: #E0E0E0;
+        font-weight: bold;
+        padding: 8px;
+        border: 0px;
+    }
+""")
+
+    
+    table_widget.setAlternatingRowColors(True)
+
+    scroll_area.setWidget(table_widget)
+    main_layout.addWidget(scroll_area)
+
+
+    # Pagination
+    pagination_layout = QHBoxLayout()
+    pagination_layout.addStretch(1)
+
+    prev_button = QPushButton("⬅ Prev")
+    next_button = QPushButton("Next ➡")
+
+    prev_button.clicked.connect(prev_handler)
+    next_button.clicked.connect(next_handler)
+
+    for btn in [prev_button, next_button]:
+        btn.setFont(QFont("Segoe UI", 10))
+        btn.setFixedSize(120, 40)
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2D9CDB;
+                color: white;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #2385BA;
+            }
+        """)
+
+    pagination_label.setFont(QFont("Segoe UI", 10))
+    pagination_label.setAlignment(Qt.AlignCenter)
+    pagination_label.setStyleSheet("padding: 0 15px;")
+
+    pagination_layout.addWidget(prev_button)
+    pagination_layout.addWidget(pagination_label)
+    pagination_layout.addWidget(next_button)
+    pagination_layout.addStretch(1)
+    main_layout.addLayout(pagination_layout)
+
+    # Buttons Section
+    button_layout = QHBoxLayout()
+    button_layout.addStretch(1)
+
+    def styled_button(text, handler, color, hover="#666666"):
+        btn = QPushButton(text)
+        btn.setFixedSize(150, 40)
+        btn.clicked.connect(handler)
+        btn.setFont(QFont("Segoe UI", 10))
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {color};
+                color: white;
+                border-radius: 5px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover};
+            }}
+        """)
+        return btn
+
+    button_layout.addWidget(styled_button("➕ Add Record", add_handler, "#2D9CDB", "#2385BA"))
+
+    if table_name.lower() == "jobs":
+        button_layout.addWidget(styled_button("📝 Edit Job", edit_handler, "#FFA500", "#CC8400"))
+
+    button_layout.addWidget(styled_button("🗑 Delete Record", delete_handler, "#D9534F", "#C9302C"))
+    button_layout.addWidget(styled_button("❌ Close", close_handler, "#444444", "#666666"))
+    button_layout.addStretch(1)
+
+    main_layout.addLayout(button_layout)
+    dialog.setLayout(main_layout)
+
+    # At the end of create_table_view_dialog
+    return dialog, prev_button, next_button, refresh_button
+
+

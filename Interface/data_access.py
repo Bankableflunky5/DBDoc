@@ -1,4 +1,5 @@
 import mariadb
+from datetime import datetime
 
 def fetch_tables(cursor):
     """
@@ -79,6 +80,13 @@ def fetch_table_data(cursor, table_name, limit=50, offset=0, order_by=None, desc
     cursor.execute(query)
     return cursor.fetchall()
 
+def fetch_table_data_with_columns(cursor, table_name, limit=50, offset=0, order_by=None, descending=True):
+    """
+    Fetches rows and column names from a table. Use for UI rendering.
+    """
+    rows = fetch_table_data(cursor, table_name, limit, offset, order_by, descending)
+    columns = [desc[0] for desc in cursor.description]
+    return rows, columns
 
 def fetch_primary_key_column(cursor, table_name):
     cursor.execute(f"SHOW KEYS FROM {table_name} WHERE Key_name = 'PRIMARY'")
@@ -90,3 +98,75 @@ def paginate_table_data(fetch_function, table_name, limit, offset):
     new_offset = max(0, offset)
     data = fetch_function(table_name, limit, new_offset)
     return new_offset, data
+
+def get_primary_key_column(cursor, table_name):
+    cursor.execute(f"SHOW KEYS FROM {table_name} WHERE Key_name = 'PRIMARY'")
+    result = cursor.fetchone()
+    return result[4] if result else None
+
+def check_primary_key_exists(cursor, table_name, pk_column, pk_value):
+    cursor.execute(f"SELECT {pk_column} FROM {table_name} WHERE {pk_column} = %s", (pk_value,))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+def check_duplicate_primary_key(cursor, table_name, pk_column, new_pk_value):
+    cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {pk_column} = %s", (new_pk_value,))
+    return cursor.fetchone()[0] > 0
+
+def update_column(cursor, conn, table_name, column_name, new_value, pk_column, pk_value):
+    cursor.execute(
+        f"UPDATE {table_name} SET {column_name} = %s WHERE {pk_column} = %s",
+        (new_value, pk_value)
+    )
+    conn.commit()
+
+def update_primary_key(cursor, conn, table_name, pk_column, old_pk, new_pk):
+    cursor.execute(
+        f"UPDATE {table_name} SET {pk_column} = %s WHERE {pk_column} = %s",
+        (new_pk, old_pk)
+    )
+    conn.commit()
+
+def update_auto_increment_if_needed(cursor, conn, table_name, pk_column):
+    cursor.execute(f"SELECT MAX({pk_column}) FROM {table_name}")
+    max_pk = cursor.fetchone()[0]
+
+    if max_pk is None:
+        return
+
+    cursor.execute(f"SHOW TABLE STATUS LIKE %s", (table_name,))
+    table_status = cursor.fetchone()
+    if table_status is None:
+        return
+
+    current_ai = table_status[10]
+    new_ai = max_pk + 1
+
+    if current_ai != new_ai:
+        cursor.execute(f"ALTER TABLE {table_name} AUTO_INCREMENT = {new_ai}")
+        conn.commit()
+
+def update_status(cursor, conn, table_name, pk_column, pk_value, new_status):
+    try:
+        if new_status == "Completed":
+            current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            query = f"""
+                UPDATE {table_name}
+                SET status = %s, EndDate = %s
+                WHERE {pk_column} = %s
+            """
+            cursor.execute(query, (new_status, current_datetime, pk_value))
+        else:
+            query = f"""
+                UPDATE {table_name}
+                SET status = %s
+                WHERE {pk_column} = %s
+            """
+            cursor.execute(query, (new_status, pk_value))
+
+        conn.commit()
+        return True
+
+    except Exception as e:
+        print(f"❌ ERROR in update_status: {e}")
+        return False
