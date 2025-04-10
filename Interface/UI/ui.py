@@ -263,7 +263,6 @@ def show_save_feedback(result, parent_window, central_widget, login_page):
 
     msg_box.exec_()
 
-
 def create_login_page(parent):
     page = QWidget()
     layout = QVBoxLayout(page)
@@ -647,7 +646,7 @@ def populate_table(table_widget, table_name, data):
     table_widget.blockSignals(False)  # ✅ Allow actual edits to be detected
 
 def main_menu_page(parent):
-    """Creates and displays the main menu UI with improved layout, centered text, and aligned emojis."""
+    """Creates and displays the upgraded main menu UI with a unified modern dark theme."""
 
     if hasattr(parent, "main_menu"):
         parent.central_widget.setCurrentWidget(parent.main_menu)
@@ -655,30 +654,73 @@ def main_menu_page(parent):
 
     parent.main_menu = QWidget()
     layout = QVBoxLayout(parent.main_menu)
-    layout.setContentsMargins(40, 20, 40, 20)
-    layout.setSpacing(15)
+    layout.setContentsMargins(50, 40, 50, 40)
+    layout.setSpacing(25)
+    layout.setAlignment(Qt.AlignTop)
 
-    title = QLabel("📌 Main Menu")
-    title.setAlignment(Qt.AlignCenter)
-    title.setStyleSheet("""
-        font-size: 26px;
-        font-weight: bold;
-        color: #FFFFFF;
-        padding: 10px;
-        border-bottom: 2px solid #3A9EF5;
+    parent.main_menu.setStyleSheet("""
+        QWidget {
+            background-color: #2E2E2E;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 14px;
+        }
+
+        QLabel#titleLabel {
+            font-size: 26px;
+            font-weight: bold;
+            color: #3A9EF5;
+            padding: 10px;
+            border-bottom: 2px solid #3A9EF5;
+        }
+
+        QPushButton {
+            font-size: 16px;
+            font-family: monospace;
+            background-color: #3A9EF5;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        QPushButton:hover {
+            background-color: #1E7BCC;
+        }
+
+        QPushButton:pressed {
+            background-color: #1665B3;
+        }
+
+        QPushButton#logoutButton {
+            background-color: #D9534F;
+        }
+
+        QPushButton#logoutButton:hover {
+            background-color: #C9302C;
+        }
+
+        QFrame#menuFrame {
+            background-color: #1f1f1f;
+            border-radius: 12px;
+            padding: 20px;
+        }
     """)
+
+    # 📌 Title
+    title = QLabel("📌 Main Menu")
+    title.setObjectName("titleLabel")
+    title.setAlignment(Qt.AlignCenter)
     layout.addWidget(title)
 
+    # 📦 Menu Container
     menu_frame = QFrame()
-    menu_frame.setStyleSheet("""
-        background-color: #2E2E2E;
-        border-radius: 10px;
-        padding: 20px;
-    """)
+    menu_frame.setObjectName("menuFrame")
     menu_layout = QVBoxLayout(menu_frame)
-    menu_layout.setSpacing(12)
+    menu_layout.setSpacing(18)
 
-
+    # 📋 Buttons
     button_data = [
         ("📁  Tables", parent.view_tables),
         ("📝  Add Job Notes", lambda: ask_for_job_id(parent)),
@@ -688,64 +730,34 @@ def main_menu_page(parent):
         ("⚙️  Settings", lambda: options_page(parent))
     ]
 
+    # Ensure uniform width
     font_metrics = QFontMetrics(QPushButton().font())
-    fixed_width = font_metrics.horizontalAdvance("🔄  Sync Google Forms  ")
+    fixed_width = font_metrics.horizontalAdvance("📊  Dashboard   ") + 40
 
     for label, command in button_data:
         button = QPushButton(label)
         button.setCursor(Qt.PointingHandCursor)
         button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        button.setFixedHeight(48)
         button.setMinimumWidth(fixed_width)
-        button.setFixedHeight(45)
-        button.setStyleSheet("""
-            QPushButton {
-                font-size: 16px;
-                font-family: monospace;
-                background-color: #3A9EF5;
-                color: white;
-                padding: 12px;
-                border-radius: 5px;
-                font-weight: bold;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #307ACC;
-            }
-        """)
         button.clicked.connect(command)
         menu_layout.addWidget(button)
 
+    # 🚪 Logout Button (styled separately)
     logout_button = QPushButton("🚪  Logout")
+    logout_button.setObjectName("logoutButton")
     logout_button.setCursor(Qt.PointingHandCursor)
-    logout_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    logout_button.setFixedHeight(48)
     logout_button.setMinimumWidth(fixed_width)
-    logout_button.setFixedHeight(45)
-    logout_button.setStyleSheet("""
-        QPushButton {
-            font-size: 16px;
-            font-family: monospace;
-            background-color: #D9534F;
-            color: white;
-            padding: 12px;
-            border-radius: 5px;
-            font-weight: bold;
-            text-align: center;
-        }
-        QPushButton:hover {
-            background-color: #C9302C;
-        }
-    """)
+    logout_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     logout_button.clicked.connect(parent.logout)
     menu_layout.addWidget(logout_button)
 
-    menu_frame.setLayout(menu_layout)
     layout.addWidget(menu_frame)
-
     parent.main_menu.setLayout(layout)
     parent.central_widget.addWidget(parent.main_menu)
     parent.central_widget.setCurrentWidget(parent.main_menu)
-
-
+    
 def options_page(parent):
     """Creates a visually enhanced settings/options page in PyQt."""
 
