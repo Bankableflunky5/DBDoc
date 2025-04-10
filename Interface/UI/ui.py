@@ -38,12 +38,25 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QPushButton, QGroupBox, QFormLayout
+)
+from PyQt5.QtCore import Qt
+from functools import partial
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QListWidget, QListWidgetItem,
+    QPushButton, QMessageBox
+)
+from PyQt5.QtGui import QIcon, QFont
+from PyQt5.QtCore import Qt, QPropertyAnimation
+
+
 
 def create_settings_page(database_config, on_save, on_back):
     page = QWidget()
     layout = QVBoxLayout(page)
-    layout.setContentsMargins(50, 50, 50, 50)
-    layout.setSpacing(25)
+    layout.setContentsMargins(70, 60, 70, 60)
+    layout.setSpacing(40)
     layout.setAlignment(Qt.AlignTop)
 
     page.setStyleSheet("""
@@ -51,12 +64,12 @@ def create_settings_page(database_config, on_save, on_back):
             background-color: #2E2E2E;
             color: white;
             font-family: 'Segoe UI', sans-serif;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         QLabel {
             color: #3A9EF5;
-            font-size: 16px;
+            font-size: 20px;
             font-weight: bold;
         }
 
@@ -64,8 +77,9 @@ def create_settings_page(database_config, on_save, on_back):
             background-color: #383838;
             color: white;
             border: 1px solid #3A9EF5;
-            border-radius: 8px;
-            padding: 10px;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 16px;
         }
 
         QLineEdit:focus {
@@ -75,10 +89,10 @@ def create_settings_page(database_config, on_save, on_back):
         QPushButton {
             background-color: #3A9EF5;
             color: white;
-            padding: 10px 20px;
+            padding: 14px 26px;
             font-weight: bold;
-            font-size: 14px;
-            border-radius: 8px;
+            font-size: 16px;
+            border-radius: 10px;
             border: none;
         }
 
@@ -94,6 +108,7 @@ def create_settings_page(database_config, on_save, on_back):
             background-color: transparent;
             color: #3A9EF5;
             font-weight: bold;
+            font-size: 16px;
         }
 
         QPushButton#backButton:hover {
@@ -102,34 +117,35 @@ def create_settings_page(database_config, on_save, on_back):
         }
 
         QCheckBox {
-            padding: 5px;
+            font-size: 15px;
+            padding: 6px;
         }
 
         QGroupBox {
             border: 1px solid #3A9EF5;
             border-radius: 10px;
-            margin-top: 15px;
+            margin-top: 20px;
         }
 
         QGroupBox:title {
             subcontrol-origin: margin;
             subcontrol-position: top left;
-            padding: 4px 10px;
+            padding: 6px 12px;
             color: #4FC3F7;
-            font-size: 15px;
+            font-size: 17px;
         }
     """)
 
     # 🔧 Title
     title = QLabel("⚙ Settings")
-    title.setFont(QFont("Arial", 24, QFont.Bold))
+    title.setFont(QFont("Arial", 28, QFont.Bold))
     title.setAlignment(Qt.AlignCenter)
     layout.addWidget(title)
-    layout.addSpacing(30)
+    layout.addSpacing(40)
 
     # 🔧 Form Fields
     form_layout = QFormLayout()
-    form_layout.setSpacing(15)
+    form_layout.setSpacing(20)
 
     host_entry = QLineEdit(database_config["host"])
     host_entry.setPlaceholderText("Enter Database Host")
@@ -163,7 +179,6 @@ def create_settings_page(database_config, on_save, on_back):
     ssl_group.setLayout(ssl_group_layout)
     form_layout.addRow(ssl_group)
 
-    # 🔁 Enable/Disable SSL Inputs
     def toggle_ssl_input(state):
         enabled = state == Qt.Checked
         ssl_path_entry.setEnabled(enabled)
@@ -171,7 +186,6 @@ def create_settings_page(database_config, on_save, on_back):
 
     ssl_checkbox.stateChanged.connect(toggle_ssl_input)
 
-    # 📁 Browse Dialog
     def browse_ssl_folder():
         path = QFileDialog.getExistingDirectory(page, "Select Folder Containing SSL Certificates")
         if path:
@@ -185,13 +199,15 @@ def create_settings_page(database_config, on_save, on_back):
     browse_button.clicked.connect(browse_ssl_folder)
 
     layout.addLayout(form_layout)
-    layout.addSpacing(20)
+    layout.addSpacing(30)
 
     # 💾 Save Button
     save_button = QPushButton("💾 Save Settings")
+    save_button.setFixedHeight(50)
     save_button.clicked.connect(on_save)
     layout.addWidget(save_button, alignment=Qt.AlignCenter)
-    layout.addSpacing(10)
+
+    layout.addSpacing(15)
 
     # ⬅ Back Button
     back_button = QPushButton("⬅ Back")
@@ -266,8 +282,8 @@ def show_save_feedback(result, parent_window, central_widget, login_page):
 def create_login_page(parent):
     page = QWidget()
     layout = QVBoxLayout(page)
-    layout.setContentsMargins(50, 50, 50, 50)
-    layout.setSpacing(25)
+    layout.setContentsMargins(70, 60, 70, 60)
+    layout.setSpacing(40)
     layout.setAlignment(Qt.AlignCenter)
 
     page.setStyleSheet("""
@@ -275,10 +291,11 @@ def create_login_page(parent):
             background-color: #2E2E2E;
             color: white;
             font-family: 'Segoe UI', sans-serif;
+            font-size: 16px;
         }
 
         QLabel {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: bold;
             color: #3A9EF5;
         }
@@ -287,9 +304,9 @@ def create_login_page(parent):
             background-color: #383838;
             color: white;
             border: 1px solid #3A9EF5;
-            border-radius: 8px;
-            padding: 10px;
-            font-size: 14px;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 16px;
         }
 
         QLineEdit:focus {
@@ -299,10 +316,10 @@ def create_login_page(parent):
         QPushButton {
             background-color: #3A9EF5;
             color: white;
-            padding: 12px;
+            padding: 14px 24px;
             font-weight: bold;
-            font-size: 14px;
-            border-radius: 8px;
+            font-size: 16px;
+            border-radius: 10px;
         }
 
         QPushButton:hover {
@@ -323,9 +340,9 @@ def create_login_page(parent):
 
         QPushButton#toggleButton {
             background-color: #555;
-            border-radius: 6px;
-            padding: 5px;
-            font-size: 12px;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 13px;
         }
 
         QPushButton#toggleButton:hover {
@@ -334,28 +351,28 @@ def create_login_page(parent):
 
         QLabel#errorLabel {
             color: #FF5555;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: bold;
         }
 
         QGroupBox {
             border: 1px solid #3A9EF5;
             border-radius: 10px;
-            margin-top: 15px;
+            margin-top: 20px;
         }
 
         QGroupBox:title {
             subcontrol-origin: margin;
             subcontrol-position: top center;
-            padding: 0 3px;
+            padding: 6px 12px;
             color: #4FC3F7;
-            font-size: 15px;
+            font-size: 17px;
         }
     """)
 
     # 🔹 Title
     title = QLabel("🩺 Database Doctor")
-    title.setFont(QFont("Arial", 26, QFont.Bold))
+    title.setFont(QFont("Arial", 30, QFont.Bold))
     title.setAlignment(Qt.AlignCenter)
     layout.addWidget(title)
 
@@ -370,7 +387,7 @@ def create_login_page(parent):
     group_layout = QVBoxLayout()
 
     form_layout = QFormLayout()
-    form_layout.setSpacing(15)
+    form_layout.setSpacing(20)
 
     parent.username_entry = QLineEdit()
     parent.username_entry.setPlaceholderText("Enter your username")
@@ -392,7 +409,7 @@ def create_login_page(parent):
     toggle_button = QPushButton("👁 Show")
     toggle_button.setObjectName("toggleButton")
     toggle_button.setCheckable(True)
-    toggle_button.setFixedWidth(60)
+    toggle_button.setFixedWidth(70)
 
     def toggle_password():
         if toggle_button.isChecked():
@@ -411,7 +428,7 @@ def create_login_page(parent):
 
     # 🔹 Login Button
     parent.login_button = QPushButton("🔓 Login")
-    parent.login_button.setFixedHeight(50)
+    parent.login_button.setFixedHeight(55)
     parent.login_button.setObjectName("animatedButton")
     parent.login_button.clicked.connect(parent.login)
     layout.addWidget(parent.login_button)
@@ -419,7 +436,7 @@ def create_login_page(parent):
     # 🔹 Settings Button
     parent.settings_button = QPushButton("⚙ Settings")
     parent.settings_button.setObjectName("settingsButton")
-    parent.settings_button.setFixedHeight(40)
+    parent.settings_button.setFixedHeight(45)
     parent.settings_button.clicked.connect(
         lambda: parent.central_widget.setCurrentWidget(parent.settings_page)
     )
@@ -531,22 +548,100 @@ def open_schedule_backup_dialog(parent, save_callback):
 
 def ask_for_job_id(parent):
     """
-    Prompts the user for a Job ID and, if valid, calls parent.view_notes(job_id).
-
-    Args:
-        parent: The object that implements `view_notes(job_id)`.
+    Prompts the user for a Job ID with validation and modern dark-themed styling.
+    If valid, it calls parent.view_notes(job_id).
     """
-    job_id, ok = QInputDialog.getText(None, "🔍 Search Job", "Enter Job ID:")
-    
-    if not ok or not job_id.strip():
-        return  # User hit Cancel or left it blank
 
-    job_id = job_id.strip()
-    if not job_id.isdigit():
-        QMessageBox.warning(None, "⚠ Invalid Input", "Job ID must be a number.")
-        return
+    # --- Custom Input Dialog ---
+    input_dialog = QInputDialog(parent)
+    input_dialog.setWindowTitle("🔍 Search Job")
+    input_dialog.setLabelText("Enter Job ID:")
+    input_dialog.setInputMode(QInputDialog.TextInput)
+    input_dialog.setFixedSize(400, 150)
+    input_dialog.setOkButtonText("Search")
+    input_dialog.setCancelButtonText("Cancel")
 
-    parent.view_notes(job_id)
+    input_dialog.setStyleSheet("""
+        QInputDialog {
+            background-color: #2E2E2E;
+            color: white;
+            font-size: 15px;
+        }
+
+        QLabel {
+            color: #3A9EF5;
+            font-weight: bold;
+            font-size: 15px;
+        }
+
+        QPushButton {
+            background-color: #3A9EF5;
+            color: white;
+            padding: 6px 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        QPushButton:hover {
+            background-color: #1E7BCC;
+        }
+
+        QPushButton:pressed {
+            background-color: #1665B3;
+        }
+    """)
+
+    line_edit = input_dialog.findChild(QLineEdit)
+    if line_edit:
+        line_edit.setPlaceholderText("e.g., 12345")
+        line_edit.setStyleSheet("""
+            QLineEdit {
+                background-color: #383838;
+                color: white;
+                border: 1px solid #3A9EF5;
+                border-radius: 8px;
+                padding: 10px;
+                font-size: 15px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #64b5f6;
+            }
+        """)
+        line_edit.setFocus()
+
+    if input_dialog.exec_() == QInputDialog.Accepted:
+        job_id = input_dialog.textValue().strip()
+
+        if not job_id.isdigit():
+            # --- Custom Styled Warning Box ---
+            msg = QMessageBox(parent)
+            msg.setWindowTitle("⚠ Invalid Input")
+            msg.setText("Job ID must be a number.")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2E2E2E;
+                    color: white;
+                    font-size: 15px;
+                }
+
+                QPushButton {
+                    background-color: #3A9EF5;
+                    color: white;
+                    padding: 6px 14px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                }
+
+                QPushButton:hover {
+                    background-color: #1E7BCC;
+                }
+            """)
+            msg.exec_()
+            return ask_for_job_id(parent)  # Prompt again
+        else:
+            parent.view_notes(job_id)
 
 def edit_selected_job(parent):
     """
@@ -645,8 +740,8 @@ def populate_table(table_widget, table_name, data):
 
     table_widget.blockSignals(False)  # ✅ Allow actual edits to be detected
 
-def main_menu_page(parent):
-    """Creates and displays the upgraded main menu UI with a unified modern dark theme."""
+def main_menu_page(parent, username ="User"):
+    """Creates and displays the upgraded main menu UI with user profile header and unified dark theme."""
 
     if hasattr(parent, "main_menu"):
         parent.central_widget.setCurrentWidget(parent.main_menu)
@@ -674,6 +769,30 @@ def main_menu_page(parent):
             border-bottom: 2px solid #3A9EF5;
         }
 
+        QLabel#profileName {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFFFFF;
+        }
+
+        QLabel#profileRole {
+            font-size: 13px;
+            color: #AAAAAA;
+        }
+
+        QLabel#avatar {
+            background-color: #3A9EF5;
+            border-radius: 25px;
+            min-width: 50px;
+            min-height: 50px;
+            max-width: 50px;
+            max-height: 50px;
+            font-size: 24px;
+            color: white;
+            text-align: center;
+            qproperty-alignment: AlignCenter;
+        }
+
         QPushButton {
             font-size: 16px;
             font-family: monospace;
@@ -682,7 +801,6 @@ def main_menu_page(parent):
             padding: 12px;
             border-radius: 8px;
             font-weight: bold;
-            text-align: center;
         }
 
         QPushButton:hover {
@@ -708,7 +826,32 @@ def main_menu_page(parent):
         }
     """)
 
-    # 📌 Title
+    # 🧑‍💼 Profile Header
+    profile_layout = QHBoxLayout()
+    profile_layout.setSpacing(15)
+
+    avatar = QLabel("👤")
+    avatar.setObjectName("avatar")
+    avatar.setAlignment(Qt.AlignCenter)
+
+    name_box = QVBoxLayout()
+    username = getattr(parent, "username", "User")
+    role = getattr(parent, "role", "Technician")
+
+    name_label = QLabel(f"Welcome, {username}")
+    name_label.setObjectName("profileName")
+
+    role_label = QLabel(role)
+    role_label.setObjectName("profileRole")
+
+    name_box.addWidget(name_label)
+    name_box.addWidget(role_label)
+
+    profile_layout.addWidget(avatar)
+    profile_layout.addLayout(name_box)
+    layout.addLayout(profile_layout)
+
+    # 📌 Menu Title
     title = QLabel("📌 Main Menu")
     title.setObjectName("titleLabel")
     title.setAlignment(Qt.AlignCenter)
@@ -720,7 +863,6 @@ def main_menu_page(parent):
     menu_layout = QVBoxLayout(menu_frame)
     menu_layout.setSpacing(18)
 
-    # 📋 Buttons
     button_data = [
         ("📁  Tables", parent.view_tables),
         ("📝  Add Job Notes", lambda: ask_for_job_id(parent)),
@@ -730,26 +872,23 @@ def main_menu_page(parent):
         ("⚙️  Settings", lambda: options_page(parent))
     ]
 
-    # Ensure uniform width
     font_metrics = QFontMetrics(QPushButton().font())
     fixed_width = font_metrics.horizontalAdvance("📊  Dashboard   ") + 40
 
     for label, command in button_data:
         button = QPushButton(label)
         button.setCursor(Qt.PointingHandCursor)
-        button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         button.setFixedHeight(48)
         button.setMinimumWidth(fixed_width)
         button.clicked.connect(command)
         menu_layout.addWidget(button)
 
-    # 🚪 Logout Button (styled separately)
+    # 🚪 Logout Button
     logout_button = QPushButton("🚪  Logout")
     logout_button.setObjectName("logoutButton")
     logout_button.setCursor(Qt.PointingHandCursor)
     logout_button.setFixedHeight(48)
     logout_button.setMinimumWidth(fixed_width)
-    logout_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     logout_button.clicked.connect(parent.logout)
     menu_layout.addWidget(logout_button)
 
@@ -757,86 +896,113 @@ def main_menu_page(parent):
     parent.main_menu.setLayout(layout)
     parent.central_widget.addWidget(parent.main_menu)
     parent.central_widget.setCurrentWidget(parent.main_menu)
-    
+ 
 def options_page(parent):
     """Creates a visually enhanced settings/options page in PyQt."""
 
     parent.settings_page = QWidget()
     layout = QVBoxLayout(parent.settings_page)
+    layout.setContentsMargins(60, 50, 60, 50)
+    layout.setSpacing(30)
 
     parent.settings_page.setStyleSheet("""
         QWidget {
             background-color: #2E2E2E;
             color: white;
-            font-size: 14px;
+            font-size: 16px;
+            font-family: 'Segoe UI', sans-serif;
         }
+
         QLabel {
-            font-size: 22px;
+            font-size: 26px;
             font-weight: bold;
             color: #3A9EF5;
-            padding: 10px;
+            padding-bottom: 20px;
         }
+
         QPushButton {
             background-color: #3A9EF5;
             color: white;
-            padding: 12px;
+            padding: 14px;
             font-weight: bold;
-            border-radius: 5px;
+            font-size: 16px;
+            border-radius: 8px;
         }
+
         QPushButton:hover {
             background-color: #1E7BCC;
         }
+
+        QPushButton:pressed {
+            background-color: #1665B3;
+        }
+
         QPushButton#backButton {
             background-color: #D9534F;
         }
+
         QPushButton#backButton:hover {
             background-color: #C9302C;
         }
-        QLineEdit {
-            background-color: #444;
-            color: white;
+
+        QGroupBox {
             border: 1px solid #3A9EF5;
-            border-radius: 5px;
-            padding: 8px;
+            border-radius: 10px;
+            margin-top: 20px;
         }
-        QLineEdit:focus {
-            border: 2px solid #3A9EF5;
+
+        QGroupBox:title {
+            subcontrol-origin: margin;
+            subcontrol-position: top center;
+            padding: 6px 12px;
+            font-size: 18px;
+            color: #4FC3F7;
         }
     """)
 
+    # 🔹 Title
     title_label = QLabel("⚙️ Settings")
     title_label.setAlignment(Qt.AlignCenter)
     layout.addWidget(title_label)
 
+    # 🔸 Grouped Actions
+    action_group = QGroupBox("Database Tools")
+    group_layout = QVBoxLayout()
+    group_layout.setSpacing(20)
+
     export_button = QPushButton("📥 Export Entire Database to Excel")
     export_button.clicked.connect(lambda: export_database_to_excel(parent, parent.cursor))
-    layout.addWidget(export_button)
+    group_layout.addWidget(export_button)
 
     backup_button = QPushButton("💾 Backup Database")
     backup_button.clicked.connect(lambda: backup_database(parent.cursor))
-    layout.addWidget(backup_button)
+    group_layout.addWidget(backup_button)
 
-    # 🕓 Backup Schedule Button
     scheduling_options_button = QPushButton("⏰ Backup Schedule Options")
     scheduling_options_button.clicked.connect(partial(open_scheduling_options_dialog, parent))
-    layout.addWidget(scheduling_options_button)
+    group_layout.addWidget(scheduling_options_button)
 
     restore_button = QPushButton("🔄 Create from Backup")
     restore_button.clicked.connect(lambda: restore_database(parent.conn, parent.cursor, parent))
-    layout.addWidget(restore_button)
+    group_layout.addWidget(restore_button)
 
     change_password_button = QPushButton("🔑 Change Password")
     change_password_button.clicked.connect(
-    lambda: change_db_password(parent.database_config, parent.conn)
-)
+        lambda: change_db_password(parent.database_config, parent.conn)
+    )
+    group_layout.addWidget(change_password_button)
 
-    layout.addWidget(change_password_button)
+    action_group.setLayout(group_layout)
+    layout.addWidget(action_group)
 
+    # 🔙 Back Button
     back_button = QPushButton("⬅ Back to Main Menu")
     back_button.setObjectName("backButton")
+    back_button.setFixedHeight(45)
     back_button.clicked.connect(lambda: main_menu_page(parent))
-    layout.addWidget(back_button)
+    layout.addWidget(back_button, alignment=Qt.AlignCenter)
 
+    # Final layout setup
     parent.settings_page.setLayout(layout)
     parent.central_widget.addWidget(parent.settings_page)
     parent.central_widget.setCurrentWidget(parent.settings_page)
@@ -966,3 +1132,141 @@ def reset_window_size(parent):
     """
     parent.dashboard_dialog.close()
     main_menu_page(parent)
+
+def display_tables_ui(tables, on_table_select_callback):
+    """
+    Displays a modern searchable UI listing the tables.
+    """
+    dialog = QDialog()
+    dialog.setWindowTitle("📂 Database Tables")
+    dialog.setGeometry(400, 250, 420, 480)
+    dialog.setStyleSheet("""
+        QDialog {
+            background-color: #2E2E2E;
+            color: white;
+            border-radius: 12px;
+        }
+
+        QLabel {
+            color: #3A9EF5;
+            font-weight: bold;
+        }
+
+        QLineEdit {
+            background-color: #383838;
+            border: 1px solid #3A9EF5;
+            border-radius: 8px;
+            padding: 10px;
+            color: white;
+            font-size: 14px;
+        }
+
+        QPushButton {
+            background-color: #D9534F;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        QPushButton:hover {
+            background-color: #C9302C;
+        }
+
+        QListWidget {
+            background-color: #444;
+            border-radius: 8px;
+            padding: 5px;
+            color: white;
+        }
+
+        QListWidget::item {
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        QListWidget::item:selected {
+            background-color: #3A9EF5;
+            color: white;
+        }
+
+        QListWidget::item:hover {
+            background-color: #2D8BE7;
+        }
+    """)
+
+    main_layout = QVBoxLayout()
+    main_layout.setSpacing(20)
+    main_layout.setContentsMargins(20, 20, 20, 20)
+
+    # Title
+    title = QLabel("📂 Available Tables")
+    title.setAlignment(Qt.AlignCenter)
+    title.setFont(QFont("Arial", 20, QFont.Bold))
+    main_layout.addWidget(title)
+
+    # Search bar
+    search_bar = QLineEdit()
+    search_bar.setPlaceholderText("🔍 Search tables...")
+    main_layout.addWidget(search_bar)
+
+    # Table list
+    table_list = QListWidget()
+    table_list.setFont(QFont("Arial", 13))
+    icons_enabled = True  # Toggle if you want to use icons or not
+
+    # Store all table names for filtering
+    all_tables = tables.copy()
+
+    def populate_list(filter_text=""):
+        table_list.clear()
+        for table in all_tables:
+            if filter_text.lower() in table.lower():
+                item = QListWidgetItem(table)
+                if icons_enabled:
+                    item.setIcon(QIcon("icons/table_icon.png"))
+                table_list.addItem(item)
+
+    populate_list()
+    main_layout.addWidget(table_list)
+
+    # Selection logic
+    def handle_table_selection():
+        selected_item = table_list.currentItem()
+        if selected_item:
+            dialog.close()
+            on_table_select_callback(selected_item.text())
+        else:
+            QMessageBox.warning(dialog, "⚠️ No Selection", "Please select a table.")
+
+    table_list.itemDoubleClicked.connect(handle_table_selection)
+
+    # Also support Enter key
+    table_list.setFocus()
+    table_list.setCurrentRow(0)
+    table_list.returnPressed = handle_table_selection  # pseudo-handler for idea clarity
+    table_list.keyPressEvent = lambda e: (
+        handle_table_selection() if e.key() == Qt.Key_Return else QListWidget.keyPressEvent(table_list, e)
+    )
+
+    # Search bar filter logic
+    search_bar.textChanged.connect(lambda text: populate_list(text))
+
+    # Close button
+    close_button = QPushButton("❌ Close")
+    close_button.setFont(QFont("Arial", 12))
+    close_button.clicked.connect(dialog.close)
+    main_layout.addWidget(close_button)
+
+    # Apply layout
+    dialog.setLayout(main_layout)
+
+    # Fade-in animation
+    animation = QPropertyAnimation(dialog, b"windowOpacity")
+    animation.setDuration(300)
+    animation.setStartValue(0)
+    animation.setEndValue(1)
+    animation.setEasingCurve(QEasingCurve.InOutQuad)
+    animation.start()
+
+    dialog.exec_()

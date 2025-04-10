@@ -1,53 +1,51 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 📦 Standard Library
-import json
-import logging
-import os
 import sys
 import threading
 from datetime import datetime
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 🛢 Database
 import mariadb
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 📊 Data Handling / Visualization
+# 📊 Data Handling & Visualization
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 🎨 PyQt5 GUI Framework
-from PyQt5.QtCore import (
-    QDate, QDateTime,
-    QPropertyAnimation, Qt
-)
-from PyQt5.QtGui import QFont, QIcon
+# 🎨 PyQt5 Core & GUI
+from PyQt5.QtCore import QDate, QDateTime, Qt
 from PyQt5.QtWidgets import (
     QAction, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
-    QFormLayout, QHeaderView, QHBoxLayout, QInputDialog,
-    QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-    QMessageBox, QPushButton, QScrollArea, QSizePolicy,
-    QSpacerItem, QStackedWidget, QStyle, QTableWidget,
-    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget
+    QFormLayout, QHBoxLayout, QHeaderView, QInputDialog,
+    QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
+    QScrollArea, QSizePolicy, QSpacerItem, QStackedWidget,
+    QStyle, QTableWidget, QTableWidgetItem, QTextEdit,
+    QVBoxLayout, QWidget
 )
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 🧩 Project Modules
 from FILE_OPS.file_ops import (
-    load_settings, load_schedule_on_startup, run_scheduled_backups, schedule_backup
+    load_schedule_on_startup, load_settings,
+    run_scheduled_backups, schedule_backup
 )
+
 from UI.ui import (
-   create_login_page, create_settings_page,
-    edit_selected_job, keyPressEvent, main_menu_page,
-    refresh_page, reset_window_size, event_filter, save_settings
+    create_login_page, create_settings_page, display_tables_ui,
+    edit_selected_job, event_filter, keyPressEvent, main_menu_page,
+    refresh_page, reset_window_size, save_settings
 )
+
 from UI.splashscreen import SplashScreen
 from UI.initthread import InitializationThread
 
-from error_utils import (log_error, handle_db_error)
+from data_access import fetch_tables
+from error_utils import handle_db_error, log_error
+
 
 
 class DatabaseApp(QMainWindow):
@@ -125,7 +123,6 @@ class DatabaseApp(QMainWindow):
                 "database": database
             }
 
-            # Add SSL parameters if SSL is enabled
             if ssl_enabled and ssl_cert_path:
                 connection_kwargs.update({
                     "ssl_ca": ssl_cert_path,
@@ -136,21 +133,31 @@ class DatabaseApp(QMainWindow):
             else:
                 print("⚠️ SSL disabled or no cert path provided.")
 
-            # Attempt Database Connection
             self.conn = mariadb.connect(**connection_kwargs)
             self.cursor = self.conn.cursor()
-
             self.password_entry.clear()
+
+            # ✅ Store username and optionally role on self
+            self.username = username
+            self.role = "Technician"  # you can replace this later if you pull roles from DB
 
             message = f"✅ Successfully connected to:\n\n📂 Database: {database}\n🌍 Host: {host}"
             print(f"🔍 Debug (Message Box Content) - {message}")
             QMessageBox.information(self, "Success", message)
 
+            # ✅ Now your main menu can access self.username
             main_menu_page(self)
 
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"Database connection failed: {e}")
             self.password_entry.clear()
+
+    def view_tables(self):
+        try:
+            tables = fetch_tables(self.cursor)
+            display_tables_ui(tables, self.view_table_data)
+        except Exception as e:
+            QMessageBox.critical(None, "Error", str(e))
 
     def keyPressEvent(self, event): #MAIN
         keyPressEvent(self, event)  # Calls the one from ui.py
@@ -172,11 +179,22 @@ class DatabaseApp(QMainWindow):
             self.password_entry.clear()
 
             # ✅ Re-create settings page when logging out
-            self.settings_page, self.host_entry, self.database_entry = create_settings_page(
-                self.database_config,  # Passing the database config
-                self.save_settings,     # Passing the save_settings method
-                lambda: self.central_widget.setCurrentWidget(self.login_page)  # Back action
-            )
+            self.settings_page, self.host_entry, self.database_entry, self.ssl_checkbox, self.ssl_path_entry = create_settings_page(
+            self.database_config,
+            lambda: save_settings(
+                self.database_config,
+                self.host_entry,
+                self.database_entry,
+                self.password_entry,
+                self.ssl_checkbox,
+                self.ssl_path_entry,
+                self.SETTINGS_FILE,
+                self.central_widget,
+                self.login_page
+            ),
+            lambda: self.central_widget.setCurrentWidget(self.login_page)
+        )
+
             
             # Reapply the stylesheet after settings page is recreated
             self.settings_page.setStyleSheet("""
@@ -244,97 +262,6 @@ class DatabaseApp(QMainWindow):
             print(f"Backup trigger failed: {e}")
         finally:
             self.is_backup_running = False  # Reset the flag after the backup is completed
-
-    def view_tables(self): #UI + DATA_ACCESS
-        """Displays all tables in the database with a modern UI."""
-        try:
-            self.cursor.execute("SHOW TABLES;")
-            tables = [table[0] for table in self.cursor.fetchall()]
-
-            dialog = QDialog()
-            dialog.setWindowTitle("📂 Database Tables")
-            dialog.setGeometry(400, 250, 420, 350)
-            dialog.setStyleSheet("""
-                QDialog {
-                    background-color: #2E2E2E;
-                    color: white;
-                    border-radius: 10px;
-                }
-            """)
-
-            main_layout = QVBoxLayout()
-
-            # **Title Label**
-            title = QLabel("📂 Available Tables")
-            title.setAlignment(Qt.AlignCenter)
-            title.setFont(QFont("Arial", 16, QFont.Bold))
-            title.setStyleSheet("color: #3A9EF5; padding: 10px; margin-bottom: 10px;")
-            main_layout.addWidget(title)
-
-            # **Table List Widget**
-            table_list = QListWidget()
-            table_list.setFont(QFont("Arial", 12))
-            table_list.setStyleSheet("""
-                QListWidget {
-                    background-color: #444;
-                    border-radius: 8px;
-                    padding: 5px;
-                    color: white;
-                }
-                QListWidget::item {
-                    padding: 10px;
-                    border-radius: 5px;
-                }
-                QListWidget::item:hover {
-                    background-color: #3A9EF5;
-                    color: white;
-                }
-            """)
-
-            # **Add Tables to List with Icons**
-            for table in tables:
-                item = QListWidgetItem(QIcon("icons/table_icon.png"), table)
-                table_list.addItem(item)
-
-            main_layout.addWidget(table_list)
-
-            # **Fade-In Animation**
-            animation = QPropertyAnimation(dialog, b"windowOpacity")
-            animation.setDuration(300)  # 300ms fade-in effect
-            animation.setStartValue(0)
-            animation.setEndValue(1)
-            animation.start()
-
-            # **Function to Open Table Data**
-            def on_table_select():
-                selected_table = table_list.currentItem().text()
-                dialog.close()
-                self.view_table_data(selected_table)
-
-            table_list.itemDoubleClicked.connect(on_table_select)
-
-            # **Close Button**
-            close_button = QPushButton("❌ Close")
-            close_button.setFont(QFont("Arial", 12))
-            close_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #D9534F;
-                    color: white;
-                    padding: 10px;
-                    border-radius: 8px;
-                }
-                QPushButton:hover {
-                    background-color: #C9302C;
-                }
-            """)
-            close_button.clicked.connect(dialog.close)
-            main_layout.addWidget(close_button)
-
-            dialog.setLayout(main_layout)
-            dialog.exec_()
-
-        except mariadb.Error as e:
-            QMessageBox.critical(None, "Error", f"Failed to retrieve tables: {e}")
 
     def fetch_data(self, table_name, limit=50, offset=0): #DATA_ACCESS
                 """Fetch data in batches from the database."""
