@@ -101,4 +101,5 @@ It's built with an emphasis on usability, aesthetic polish, and real-world repai
 
 - [ ] **Add first time setup** to form to streamline creation of env and config files
 
+- [ ] **make ssl usage optional remove hardcoding of route to certification**
 
