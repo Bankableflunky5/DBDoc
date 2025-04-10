@@ -37,19 +37,20 @@ from FILE_OPS.file_ops import (
 from UI.ui import (
     create_login_page, create_settings_page, display_tables_ui,
     edit_selected_job, event_filter, keyPressEvent, main_menu_page,
-    refresh_page, reset_window_size, save_settings
+    refresh_page, reset_window_size, save_settings, handle_login, handle_logout
 )
 
 from UI.splashscreen import SplashScreen
 from UI.initthread import InitializationThread
 
-from data_access import fetch_tables
+from data_access import fetch_tables, connect_to_database, fetch_data
 from error_utils import handle_db_error, log_error
 
 
 
 class DatabaseApp(QMainWindow):
     SETTINGS_FILE = "settings.json"
+    SCHEDULE_FILE_PATH = "backup_schedule.json"
     
     def __init__(self): #MAIN
         super().__init__()
@@ -98,61 +99,7 @@ class DatabaseApp(QMainWindow):
         )
         self.scheduler_thread.start()
     
-    def login(self):  # UI + Data Access
-        """Handles the login process securely with optional SSL."""
-        username = self.username_entry.text()
-        password = self.password_entry.text()
-        host = self.database_config.get("host", "localhost")
-        database = self.database_config.get("database", "")
-
-        ssl_config = self.database_config.get("ssl", {})
-        ssl_enabled = ssl_config.get("enabled", False)
-        ssl_cert_path = ssl_config.get("cert_path", "").strip()
-
-        print(f"🔍 Debug (Before Connection) - Database: {database}, Host: {host}, SSL: {ssl_enabled}, Cert: {ssl_cert_path}")
-
-        if not username or not password or not database:
-            QMessageBox.critical(self, "Error", "Please fill in all fields and ensure settings are configured.")
-            return
-
-        try:
-            connection_kwargs = {
-                "user": username,
-                "password": password,
-                "host": host,
-                "database": database
-            }
-
-            if ssl_enabled and ssl_cert_path:
-                connection_kwargs.update({
-                    "ssl_ca": ssl_cert_path,
-                    "ssl_cert": ssl_cert_path,
-                    "ssl_key": ssl_cert_path
-                })
-                print("🔐 SSL enabled - Using cert path:", ssl_cert_path)
-            else:
-                print("⚠️ SSL disabled or no cert path provided.")
-
-            self.conn = mariadb.connect(**connection_kwargs)
-            self.cursor = self.conn.cursor()
-            self.password_entry.clear()
-
-            # ✅ Store username and optionally role on self
-            self.username = username
-            self.role = "Technician"  # you can replace this later if you pull roles from DB
-
-            message = f"✅ Successfully connected to:\n\n📂 Database: {database}\n🌍 Host: {host}"
-            print(f"🔍 Debug (Message Box Content) - {message}")
-            QMessageBox.information(self, "Success", message)
-
-            # ✅ Now your main menu can access self.username
-            main_menu_page(self)
-
-        except mariadb.Error as e:
-            QMessageBox.critical(self, "Database Error", f"Database connection failed: {e}")
-            self.password_entry.clear()
-
-    def view_tables(self):
+    def view_tables(self): #MAIN
         try:
             tables = fetch_tables(self.cursor)
             display_tables_ui(tables, self.view_table_data)
@@ -162,116 +109,19 @@ class DatabaseApp(QMainWindow):
     def keyPressEvent(self, event): #MAIN
         keyPressEvent(self, event)  # Calls the one from ui.py
 
-    def logout(self):  # UI + DATA_ACCESS
-        """Logs out the user and resets the UI to prevent issues."""
-
-        confirm = QMessageBox.question(
-            self, "Logout", "Are you sure you want to log out?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+    def login(self): #MAIN
+        handle_login(
+            ui_instance=self,
+            database_config=self.database_config,
+            connect_func=connect_to_database,
+            on_success_callback=main_menu_page
         )
 
-        if confirm == QMessageBox.Yes:
-            # ✅ Reset to login page and ensure it's part of the stacked widget
-            self.central_widget.setCurrentWidget(self.login_page)
+    def fetch_data(self, table_name, limit=50, offset=0): #MAIN
+        return fetch_data(self.cursor, table_name, limit, offset)
 
-            # ✅ Clear stored credentials (Optional)
-            self.username_entry.clear()
-            self.password_entry.clear()
-
-            # ✅ Re-create settings page when logging out
-            self.settings_page, self.host_entry, self.database_entry, self.ssl_checkbox, self.ssl_path_entry = create_settings_page(
-            self.database_config,
-            lambda: save_settings(
-                self.database_config,
-                self.host_entry,
-                self.database_entry,
-                self.password_entry,
-                self.ssl_checkbox,
-                self.ssl_path_entry,
-                self.SETTINGS_FILE,
-                self.central_widget,
-                self.login_page
-            ),
-            lambda: self.central_widget.setCurrentWidget(self.login_page)
-        )
-
-            
-            # Reapply the stylesheet after settings page is recreated
-            self.settings_page.setStyleSheet("""
-                QWidget {
-                    background-color: #2E2E2E;
-                    color: white;
-                }
-                QLabel {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #3A9EF5;
-                }
-                QLineEdit {
-                    background-color: #444;
-                    color: white;
-                    border: 1px solid #3A9EF5;
-                    border-radius: 5px;
-                    padding: 8px;
-                }
-                QPushButton {
-                    background-color: #3A9EF5;
-                    color: white;
-                    padding: 10px;
-                    font-weight: bold;
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #1E7BCC;
-                }
-                QPushButton#backButton {
-                    background-color: #666;
-                }
-                QPushButton#backButton:hover {
-                    background-color: #888;
-                }
-            """)
-
-            # Add the settings page to the stack
-            self.central_widget.addWidget(self.settings_page)
-
-            # ✅ Close database connection (Optional, for security)
-            if hasattr(self, "conn") and self.conn:
-                self.conn.close()
-                self.conn = None  # Ensure no active connection remains
-
-            QMessageBox.information(self, "Logged Out", "✅ You have been successfully logged out.")
-
-    def trigger_backup(self, backup_directory):  # FILE_OPS - CHECK LOGIC
-        """Trigger the backup process at the scheduled time."""
-        if not backup_directory:
-            print("Backup directory is not provided.")
-            return
-
-        if self.is_backup_running:  # Prevent multiple backups from running at the same time
-            print("Backup is already running. Please wait for it to finish.")
-            return
-
-        self.is_backup_running = True  # Set the flag to indicate backup is in progress
-
-        try:
-            # Call the actual backup function and pass the directory
-            self.backup_database(backup_directory)
-            print(f"Backup successfully triggered for directory: {backup_directory}")
-        except Exception as e:
-            print(f"Backup trigger failed: {e}")
-        finally:
-            self.is_backup_running = False  # Reset the flag after the backup is completed
-
-    def fetch_data(self, table_name, limit=50, offset=0): #DATA_ACCESS
-                """Fetch data in batches from the database."""
-                try:
-                    query = f"SELECT * FROM {table_name} ORDER BY 1 DESC LIMIT %s OFFSET %s"
-                    self.cursor.execute(query, (limit, offset))
-                    return self.cursor.fetchall()
-                except mariadb.Error as e:
-                    print(f"Database Error: {e}")
-                    return []
+    def logout(self): #MAIN
+        handle_logout(self)
 
     def update_table_offset(self, change): #UI + DATA_ACCESS
         """Handles pagination while ensuring dropdowns remain intact and row count is correct."""
@@ -593,7 +443,7 @@ class DatabaseApp(QMainWindow):
             self.table_limit = 50
             self.current_table_name = table_name
 
-            data = self.fetch_data(table_name, self.table_limit, self.table_offset)
+            data = fetch_data(self.cursor, table_name, self.table_limit, self.table_offset)
            
             
 

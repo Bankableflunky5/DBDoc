@@ -17,6 +17,9 @@ import schedule
 from PyQt5.QtWidgets import QMessageBox, QFileDialog
 
 
+from db_utils import backup_database
+
+
 
 SETTINGS_FILE = "settings.json"
 SCHEDULE_FILE_PATH = "backup_schedule.json"
@@ -33,60 +36,37 @@ def save_database_config(database_config, settings_file):
     except Exception as e:
         return f"❌ Failed to save settings: {e}"
 
-def schedule_backup(interval="daily", time_of_day="00:00", backup_directory=None, backup_func=None):
-    """
-    Registers a scheduled backup job using the schedule library.
+def load_settings():
+    """Loads the database settings from a JSON file, including SSL settings."""
+    default_config = {
+        "host": "localhost",
+        "database": "",
+        "password": "",
+        "ssl": {
+            "enabled": False,
+            "cert_path": ""
+        }
+    }
 
-    Args:
-        interval (str): e.g., "daily", "hourly", "every X minutes"
-        time_of_day (str): Time for daily backups (HH:MM)
-        backup_directory (str): Path where backups are stored
-        backup_func (callable): Function to call to perform the backup
-    """
-    if not backup_func:
-        raise ValueError("backup_func must be provided")
-
-    if interval == "daily":
-        schedule.every().day.at(time_of_day).do(backup_func, backup_directory)
-    elif interval == "hourly":
-        schedule.every().hour.do(backup_func, backup_directory)
-    elif interval.startswith("every"):
+    if os.path.exists(SETTINGS_FILE):
         try:
-            minutes = int(interval.split()[1])
-            schedule.every(minutes).minutes.do(backup_func, backup_directory)
-        except ValueError:
-            print(f"⚠️ Invalid interval format: {interval}")
-            return
+            with open(SETTINGS_FILE, "r") as file:
+                loaded_config = json.load(file)
 
-    print(f"✅ Backup scheduled: {interval} at {time_of_day} to → {backup_directory}")
+                # Update top-level fields
+                default_config["host"] = loaded_config.get("host", "localhost")
+                default_config["database"] = loaded_config.get("database", "")
+                default_config["password"] = loaded_config.get("password", "")
 
-def run_scheduled_backups(stop_event):
-    """
-    Continuously runs scheduled tasks until the stop_event is set.
+                # Update nested SSL config
+                ssl_config = loaded_config.get("ssl", {})
+                default_config["ssl"]["enabled"] = ssl_config.get("enabled", False)
+                default_config["ssl"]["cert_path"] = ssl_config.get("cert_path", "")
 
-    Args:
-        stop_event (threading.Event): An event that can be triggered to stop the loop.
-    """
-    while not stop_event.is_set():
-        schedule.run_pending()
-        time.sleep(1)
+        except Exception as e:
+            print(f"⚠️ Failed to load settings: {e}")
 
-def save_schedule_to_json(schedule_data, schedule_path, parent=None):
-    """
-    Save the backup schedule to a JSON file.
-
-    Args:
-        schedule_data (dict): The schedule data to save.
-        schedule_path (str): Path to the output JSON file.
-        parent (optional): QWidget used for QMessageBox (if provided).
-    """
-    try:
-        with open(schedule_path, "w") as json_file:
-            json.dump(schedule_data, json_file, indent=4)
-        print(f"✅ Backup schedule saved: {schedule_data}")
-    except Exception as e:
-        if parent:
-            QMessageBox.critical(parent, "Error", f"❌ Failed to save backup schedule:\n{e}")
+    return default_config
 
 def export_database_to_excel(parent, cursor):
     """
@@ -128,26 +108,6 @@ def export_database_to_excel(parent, cursor):
     except Exception as e:
         QMessageBox.critical(parent, "❌ Error", f"Failed to export database:\n{e}")
 
-def load_schedule_from_json(schedule_path, parent=None):
-    """
-    Loads the backup schedule from a JSON file.
-
-    Args:
-        schedule_path (str): Path to the schedule JSON file.
-        parent (QWidget, optional): Used as the parent for error message boxes.
-
-    Returns:
-        dict or None: The loaded schedule data, or None if loading fails.
-    """
-    if os.path.exists(schedule_path):
-        try:
-            with open(schedule_path, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            if parent:
-                QMessageBox.critical(parent, "Error", f"Failed to load backup schedule:\n{e}")
-    return None
-
 def load_schedule_on_startup(parent):
     """
     Load the backup schedule from a JSON file and apply it during app startup.
@@ -169,13 +129,13 @@ def load_schedule_on_startup(parent):
             interval=interval,
             time_of_day=time_of_day,
             backup_directory=backup_directory[0],  # Assuming backup_directory is a list
-            backup_func=parent.trigger_backup  # Use the parent's function
+            backup_func=lambda _=None: trigger_backup(parent, backup_directory[0]) # Use the parent's function
         )
     elif interval == "Hourly":
         schedule_backup(
             interval="hourly",  # Use the "hourly" interval
             backup_directory=backup_directory,
-            backup_func=parent.trigger_backup  # Use the parent's function
+            backup_func=lambda _=None: trigger_backup(parent, backup_directory[0]) # Use the parent's function
         )
     elif interval and interval.startswith("every"):
         try:
@@ -183,7 +143,7 @@ def load_schedule_on_startup(parent):
             schedule_backup(
                 interval=f"every {minutes} minutes",
                 backup_directory=backup_directory,
-                backup_func=parent.trigger_backup  # Use the parent's function
+                backup_func=lambda _=None: trigger_backup(parent, backup_directory[0]) # Use the parent's function
             )
         except (IndexError, ValueError):
             # Optional: log or warn about malformed interval
@@ -226,7 +186,7 @@ def save_backup_schedule(parent, interval_combo, time_entry, backup_directory, d
                             interval="daily",
                             time_of_day=time_of_day,
                             backup_directory=backup_directory[0],
-                            backup_func=parent.trigger_backup  # ✅ the real backup logic still lives in your main app
+                            backup_func=lambda _=None: trigger_backup(parent, backup_directory[0]) # ✅ the real backup logic still lives in your main app
                         )
     elif interval == "Hourly":
         parent.schedule_backup(interval="hourly", backup_directory=backup_directory[0])
@@ -240,6 +200,67 @@ def save_backup_schedule(parent, interval_combo, time_entry, backup_directory, d
 
     dialog.accept()
     QMessageBox.information(parent, "✅ Success", "Backup schedule saved successfully.")
+
+def save_schedule_to_json(schedule_data, schedule_path, parent=None):
+    """
+    Save the backup schedule to a JSON file.
+
+    Args:
+        schedule_data (dict): The schedule data to save.
+        schedule_path (str): Path to the output JSON file.
+        parent (optional): QWidget used for QMessageBox (if provided).
+    """
+    try:
+        with open(schedule_path, "w") as json_file:
+            json.dump(schedule_data, json_file, indent=4)
+        print(f"✅ Backup schedule saved: {schedule_data}")
+    except Exception as e:
+        if parent:
+            QMessageBox.critical(parent, "Error", f"❌ Failed to save backup schedule:\n{e}")
+
+def load_schedule_from_json(schedule_path, parent=None):
+    """
+    Loads the backup schedule from a JSON file.
+
+    Args:
+        schedule_path (str): Path to the schedule JSON file.
+        parent (QWidget, optional): Used as the parent for error message boxes.
+
+    Returns:
+        dict or None: The loaded schedule data, or None if loading fails.
+    """
+    if os.path.exists(schedule_path):
+        try:
+            with open(schedule_path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            if parent:
+                QMessageBox.critical(parent, "Error", f"Failed to load backup schedule:\n{e}")
+    return None
+
+def schedule_backup(interval="daily", time_of_day="00:00", backup_directory=None, backup_func=None):
+    """
+    Registers a scheduled backup job using the schedule library.
+    """
+    if not backup_func:
+        raise ValueError("backup_func must be provided")
+
+    # 🔧 This lambda now works whether 0 or 1 args are passed
+    job_func = lambda _=None: backup_func(backup_directory)
+
+    if interval == "daily":
+        schedule.every().day.at(time_of_day).do(job_func)
+    elif interval == "hourly":
+        schedule.every().hour.do(job_func)
+    elif interval.startswith("every"):
+        try:
+            minutes = int(interval.split()[1])
+            schedule.every(minutes).minutes.do(job_func)
+        except ValueError:
+            print(f"⚠️ Invalid interval format: {interval}")
+            return
+
+    print(f"✅ Backup scheduled: {interval} at {time_of_day} to → {backup_directory}")
 
 def clear_current_schedule(parent):
     """
@@ -278,35 +299,40 @@ def view_current_schedule(parent):
     else:
         QMessageBox.information(parent, "No Schedule", "⚠️ No backup schedule is set.")
 
-def load_settings():
-    """Loads the database settings from a JSON file, including SSL settings."""
-    default_config = {
-        "host": "localhost",
-        "database": "",
-        "password": "",
-        "ssl": {
-            "enabled": False,
-            "cert_path": ""
-        }
-    }
+def run_scheduled_backups(stop_event):
+    """
+    Continuously runs scheduled tasks until the stop_event is set.
 
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r") as file:
-                loaded_config = json.load(file)
+    Args:
+        stop_event (threading.Event): An event that can be triggered to stop the loop.
+    """
+    while not stop_event.is_set():
+        schedule.run_pending()
+        time.sleep(1)
 
-                # Update top-level fields
-                default_config["host"] = loaded_config.get("host", "localhost")
-                default_config["database"] = loaded_config.get("database", "")
-                default_config["password"] = loaded_config.get("password", "")
+def trigger_backup(app_instance, backup_directory):
+    """
+    Triggers the backup process at the scheduled time.
 
-                # Update nested SSL config
-                ssl_config = loaded_config.get("ssl", {})
-                default_config["ssl"]["enabled"] = ssl_config.get("enabled", False)
-                default_config["ssl"]["cert_path"] = ssl_config.get("cert_path", "")
+    Args:
+        app_instance: The main application instance (must have a `cursor` and an `is_backup_running` attribute).
+        backup_directory (str): The directory to save the backup to.
+    """
+    if not backup_directory:
+        print("❌ Backup directory is not provided.")
+        return
 
-        except Exception as e:
-            print(f"⚠️ Failed to load settings: {e}")
+    if getattr(app_instance, "is_backup_running", False):
+        print("⏳ Backup is already running. Please wait for it to finish.")
+        return
 
-    return default_config
+    app_instance.is_backup_running = True
 
+    try:
+        # Call the actual backup function using app_instance's cursor
+        backup_database(app_instance.cursor, backup_directory)
+        print(f"✅ Backup successfully triggered for directory: {backup_directory}")
+    except Exception as e:
+        print(f"❌ Backup trigger failed: {e}")
+    finally:
+        app_instance.is_backup_running = False

@@ -49,6 +49,22 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtCore import Qt, QPropertyAnimation
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QLineEdit, QAction,
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
+    QMessageBox, QSpacerItem, QSizePolicy
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QLineEdit, QAction,
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
+    QMessageBox, QSpacerItem, QSizePolicy
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QMessageBox
+from data_access import close_connection
 
 
 
@@ -1111,7 +1127,7 @@ def refresh_page(parent):
     """
     parent.table_widget.blockSignals(True)  # Prevents unwanted table updates
     parent.table_widget.setRowCount(0)      # Clears all existing rows
-    parent.load_table(parent.table_name, parent.table_offset)  # Loads the appropriate data
+    parent.load_table(parent.current_table_name, parent.table_offset)  # Loads the appropriate data
     parent.table_widget.blockSignals(False)  # Re-enable signals
 
 def exit_app(parent):
@@ -1270,3 +1286,167 @@ def display_tables_ui(tables, on_table_select_callback):
     animation.start()
 
     dialog.exec_()
+
+def handle_login(ui_instance, database_config, connect_func, on_success_callback):
+    """
+    Handles login interaction, connection attempt, and page transition.
+    """
+
+    username = ui_instance.username_entry.text().strip()
+    password = ui_instance.password_entry.text()
+    host = database_config.get("host", "localhost")
+    database = database_config.get("database", "")
+
+    ssl_config = database_config.get("ssl", {})
+    ssl_enabled = ssl_config.get("enabled", False)
+    ssl_cert_path = ssl_config.get("cert_path", "").strip()
+
+    if not username or not password or not database:
+        msg = QMessageBox(ui_instance)
+        msg.setWindowTitle("❌ Missing Fields")
+        msg.setText("Please fill in all fields and ensure settings are configured.")
+        msg.setIcon(QMessageBox.Critical)
+        msg.setStyleSheet(_custom_messagebox_stylesheet())
+        msg.exec_()
+        return
+
+    try:
+        conn, cursor = connect_func(
+            username, password, host, database, ssl_enabled, ssl_cert_path
+        )
+
+        # Store connection info
+        ui_instance.conn = conn
+        ui_instance.cursor = cursor
+        ui_instance.username = username
+        ui_instance.role = "Technician"  # Swap for actual role lookup if available
+
+        # Success feedback
+        success_msg = QMessageBox(ui_instance)
+        success_msg.setWindowTitle("✅ Login Successful")
+        success_msg.setText(
+            f"<b>Successfully connected to:</b><br><br>"
+            f"📂 <b>Database:</b> {database}<br>"
+            f"🌍 <b>Host:</b> {host}"
+        )
+        success_msg.setIcon(QMessageBox.Information)
+        success_msg.setStyleSheet(_custom_messagebox_stylesheet())
+        success_msg.exec_()
+
+        # Cleanup
+        ui_instance.password_entry.clear()
+
+        # Redirect to main app view
+        on_success_callback(ui_instance)
+
+    except Exception as e:
+        # Avoid leaking technical errors unless debugging
+        error_msg = QMessageBox(ui_instance)
+        error_msg.setWindowTitle("⚠️ Connection Failed")
+        error_msg.setText("Could not connect to the database.\n\nPlease check your credentials or network settings.")
+        error_msg.setDetailedText(str(e))  # Expandable in case user clicks "Show Details"
+        error_msg.setIcon(QMessageBox.Critical)
+        error_msg.setStyleSheet(_custom_messagebox_stylesheet())
+        error_msg.exec_()
+
+        ui_instance.password_entry.clear()
+
+def _custom_messagebox_stylesheet():
+    return """
+        QMessageBox {
+            background-color: #2E2E2E;
+            color: white;
+            font-size: 15px;
+        }
+
+        QPushButton {
+            background-color: #3A9EF5;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+
+        QPushButton:hover {
+            background-color: #1E7BCC;
+        }
+    """
+
+def handle_logout(ui_instance):
+    """Logs out the user, resets UI elements, and closes DB connection."""
+
+    confirm = QMessageBox.question(
+        ui_instance, "Logout", "Are you sure you want to log out?",
+        QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+    )
+
+    if confirm != QMessageBox.Yes:
+        return
+
+    # 🔒 Reset to login page
+    ui_instance.central_widget.setCurrentWidget(ui_instance.login_page)
+
+    # 🔐 Clear stored login entries
+    ui_instance.username_entry.clear()
+    ui_instance.password_entry.clear()
+
+    # 🔄 Recreate the settings page (fresh)
+    ui_instance.settings_page, ui_instance.host_entry, ui_instance.database_entry, ui_instance.ssl_checkbox, ui_instance.ssl_path_entry = create_settings_page(
+        ui_instance.database_config,
+        lambda: save_settings(
+            ui_instance.database_config,
+            ui_instance.host_entry,
+            ui_instance.database_entry,
+            ui_instance.password_entry,
+            ui_instance.ssl_checkbox,
+            ui_instance.ssl_path_entry,
+            ui_instance.SETTINGS_FILE,
+            ui_instance.central_widget,
+            ui_instance.login_page
+        ),
+        lambda: ui_instance.central_widget.setCurrentWidget(ui_instance.login_page)
+    )
+
+    ui_instance.settings_page.setStyleSheet("""
+        QWidget {
+            background-color: #2E2E2E;
+            color: white;
+        }
+        QLabel {
+            font-size: 16px;
+            font-weight: bold;
+            color: #3A9EF5;
+        }
+        QLineEdit {
+            background-color: #444;
+            color: white;
+            border: 1px solid #3A9EF5;
+            border-radius: 5px;
+            padding: 8px;
+        }
+        QPushButton {
+            background-color: #3A9EF5;
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+        QPushButton:hover {
+            background-color: #1E7BCC;
+        }
+        QPushButton#backButton {
+            background-color: #666;
+        }
+        QPushButton#backButton:hover {
+            background-color: #888;
+        }
+    """)
+
+    ui_instance.central_widget.addWidget(ui_instance.settings_page)
+
+    # ❌ Close the DB connection (securely)
+    ui_instance.conn = close_connection(getattr(ui_instance, "conn", None))
+    ui_instance.cursor = None
+
+    # ✅ Let the user know they're out
+    QMessageBox.information(ui_instance, "Logged Out", "✅ You have been successfully logged out.")
