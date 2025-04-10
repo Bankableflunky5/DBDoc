@@ -65,6 +65,10 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QStyle
 from PyQt5.QtWidgets import QMessageBox
 from data_access import close_connection
+from PyQt5.QtWidgets import QTableWidgetItem, QComboBox, QHeaderView
+from PyQt5.QtCore import Qt
+from data_access import fetch_table_data, fetch_primary_key_column
+
 
 
 
@@ -1117,18 +1121,21 @@ def keyPressEvent(parent, event): #UI
     if event.key() == Qt.Key_Return:  # Check if the "Enter" key is pressed
         parent.login()  # Call the login method
 
-def refresh_page(parent):
-    """
-    Reloads the current page while keeping the dropdowns intact.
+def refresh_page(parent, offset=None):
+    parent.table_widget.blockSignals(True)
+    parent.table_widget.setRowCount(0)
+    
+    load_table(
+        table_widget=parent.table_widget,
+        cursor=parent.cursor,
+        table_name=parent.current_table_name,
+        update_status_callback=parent.update_status_and_database,
+        table_offset=offset if offset is not None else parent.table_offset,
+        limit=parent.table_limit,
+        event_filter=parent
+    )
 
-    Args:
-        parent: The object (typically a UI controller or main window)
-                that holds table_widget, table_name, table_offset, and load_table().
-    """
-    parent.table_widget.blockSignals(True)  # Prevents unwanted table updates
-    parent.table_widget.setRowCount(0)      # Clears all existing rows
-    parent.load_table(parent.current_table_name, parent.table_offset)  # Loads the appropriate data
-    parent.table_widget.blockSignals(False)  # Re-enable signals
+    parent.table_widget.blockSignals(False)
 
 def exit_app(parent):
     """
@@ -1450,3 +1457,96 @@ def handle_logout(ui_instance):
 
     # ✅ Let the user know they're out
     QMessageBox.information(ui_instance, "Logged Out", "✅ You have been successfully logged out.")
+
+def load_table(table_widget, cursor, table_name, update_status_callback, table_offset=0, limit=50, event_filter=None):
+    data = fetch_table_data(cursor, table_name, limit, table_offset)
+    total_rows = len(data)
+
+    primary_key_column = fetch_primary_key_column(cursor, table_name)
+    data = fetch_table_data(cursor, table_name, limit, table_offset, order_by=primary_key_column)
+
+    if not primary_key_column:
+        print(f"❌ ERROR: No primary key found for table {table_name}.")
+        return
+
+    # Determine primary key column index
+    primary_key_index = next(
+        (i for i in range(table_widget.columnCount())
+         if table_widget.horizontalHeaderItem(i).text() == primary_key_column),
+        None
+    )
+
+    table_widget.clearContents()
+    table_widget.setRowCount(total_rows)
+
+    # Optional: handle 'jobs' specific logic
+    status_column_index = None
+    if table_name == "jobs":
+        status_column_index = next(
+            (i for i in range(table_widget.columnCount())
+             if table_widget.horizontalHeaderItem(i).text().lower() == "status"),
+            None
+        )
+
+    for row_idx, row_data in enumerate(data):
+        for col_idx, value in enumerate(row_data):
+            if col_idx == status_column_index:
+                combo = QComboBox()
+                combo.addItems(["Waiting for Parts", "In Progress", "Completed", "Picked Up"])
+                options = [combo.itemText(i) for i in range(combo.count())]
+                combo.setCurrentText(value if value in options else "In Progress")
+                combo.setEditable(False)
+                if event_filter:
+                    combo.installEventFilter(event_filter)
+                combo.currentTextChanged.connect(lambda text, row=row_idx: update_status_callback(row, text))
+                table_widget.setCellWidget(row_idx, col_idx, combo)
+            else:
+                item = QTableWidgetItem(str(value) if value is not None else "")
+                if col_idx == primary_key_index:
+                    item.setData(Qt.UserRole, str(value))
+                table_widget.setItem(row_idx, col_idx, item)
+
+    table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+    table_widget.verticalHeader().setVisible(False)
+
+def update_table_offset_ui(
+    table_widget,
+    pagination_label,
+    prev_button,
+    next_button,
+    fetch_function,
+    table_name,
+    current_offset,
+    limit,
+    change,
+    refresh_callback,
+    parent=None
+):
+    old_offset = current_offset
+    new_offset = max(0, old_offset + change)
+    data = fetch_function(table_name, limit, new_offset)
+    total_rows = len(data)
+
+    if not data and change > 0:
+        if parent:
+            QMessageBox.information(parent, "End of Data", "No more records to load.")
+        return old_offset  # Cancel pagination
+
+    table_widget.clearContents()
+    table_widget.setRowCount(total_rows)
+
+    # 🔁 Refresh widgets, dropdowns, etc.
+    refresh_callback()
+
+    # Reset scroll
+    table_widget.verticalScrollBar().setValue(0)
+
+    # Update pagination label
+    current_page = (new_offset // limit) + 1
+    pagination_label.setText(f"Page {current_page}")
+
+    # Enable/disable pagination buttons
+    prev_button.setEnabled(new_offset > 0)
+    next_button.setEnabled(total_rows == limit)
+
+    return new_offset

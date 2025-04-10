@@ -69,3 +69,24 @@ def close_connection(conn):
             pass
         return None
     return conn
+
+def fetch_table_data(cursor, table_name, limit=50, offset=0, order_by=None, descending=True):
+    order_clause = ""
+    if order_by:
+        order_clause = f"ORDER BY {order_by} {'DESC' if descending else 'ASC'}"
+
+    query = f"SELECT * FROM {table_name} {order_clause} LIMIT {limit} OFFSET {offset}"
+    cursor.execute(query)
+    return cursor.fetchall()
+
+
+def fetch_primary_key_column(cursor, table_name):
+    cursor.execute(f"SHOW KEYS FROM {table_name} WHERE Key_name = 'PRIMARY'")
+    pk_info = cursor.fetchone()
+    return pk_info[4] if pk_info else None
+
+def paginate_table_data(fetch_function, table_name, limit, offset):
+    """Handles pagination logic and returns the new offset and data."""
+    new_offset = max(0, offset)
+    data = fetch_function(table_name, limit, new_offset)
+    return new_offset, data

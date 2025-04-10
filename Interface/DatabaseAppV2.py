@@ -37,7 +37,8 @@ from FILE_OPS.file_ops import (
 from UI.ui import (
     create_login_page, create_settings_page, display_tables_ui,
     edit_selected_job, event_filter, keyPressEvent, main_menu_page,
-    refresh_page, reset_window_size, save_settings, handle_login, handle_logout
+    refresh_page, reset_window_size, save_settings, handle_login, 
+    handle_logout, load_table, populate_table, update_table_offset_ui
 )
 
 from UI.splashscreen import SplashScreen
@@ -123,132 +124,26 @@ class DatabaseApp(QMainWindow):
     def logout(self): #MAIN
         handle_logout(self)
 
-    def update_table_offset(self, change): #UI + DATA_ACCESS
-        """Handles pagination while ensuring dropdowns remain intact and row count is correct."""
-        old_offset = self.table_offset
-        self.table_offset += change
+    def eventFilter(self, source, event): #MAIN
+            return event_filter(self, source, event)
 
-        # Prevent negative offsets
-        if self.table_offset < 0:
-            self.table_offset = 0
+    def update_table_offset(self, change): #MAIN
+        new_offset = max(0, self.table_offset + change)
+        self.table_offset = new_offset  # update the internal state
 
-        data = self.fetch_data(self.table_name, self.table_limit, self.table_offset)
-        total_rows = len(data)  # Get the exact number of records returned
-        #print(f"🟢 DEBUG: Navigated to offset {self.table_offset}. Loaded {total_rows} rows.")
-
-        # If no data is found on the next page
-        if not data and change > 0:
-            print("❌ DEBUG: No more records available. Resetting offset.")
-            QMessageBox.information(self, "End of Data", "No more records to load.")
-            self.table_offset = old_offset  # Reset offset if no data
-            return
-
-        # 🔥 Set the correct row count dynamically
-        self.table_widget.clearContents()  # Clears all widgets
-        self.table_widget.setRowCount(total_rows)  # Only set as many rows as needed
-
-        refresh_page(self)  # Call refresh to ensure dropdowns are assigned
-
-        # Reset scrollbar to the top
-        self.table_widget.verticalScrollBar().setValue(0)
-
-        # Update pagination label
-        current_page = (self.table_offset // self.table_limit) + 1
-        #print(f"🟡 DEBUG: Updated to Page {current_page}")
-        self.pagination_label.setText(f"Page {current_page}")
-
-        # Enable/disable navigation buttons
-        self.prev_button.setEnabled(self.table_offset > 0)  # Disable if on first page
-        self.next_button.setEnabled(total_rows == self.table_limit)  # Disable if no more records
-    
-    def load_table(self, table_name, table_offset=None): #UI + DATA_ACCESS
-        """Loads data into the table and ensures dropdowns persist correctly, while also storing primary key correctly."""
-        self.table_name = table_name
-        if table_offset is not None:
-            self.table_offset = table_offset  # Keep track of the correct page offset
-
-        self.table_limit = 50  # Number of rows per batch
-        data = self.fetch_data(table_name, self.table_limit, self.table_offset)
-        total_rows = len(data)  # Get the number of actual records
-        #print(f"🟢 DEBUG: Loaded {total_rows} rows from table {table_name} at offset {self.table_offset}")
-
-        # ✅ Fetch primary key dynamically
-        self.cursor.execute(f"SHOW KEYS FROM {table_name} WHERE Key_name = 'PRIMARY'")
-        primary_key_column = self.cursor.fetchone()
-
-        if not primary_key_column:
-            print(f"❌ ERROR: No primary key found for table {table_name}.")
-            return
-
-        primary_key_column = primary_key_column[4]  # Column name of PK
-
-        # ✅ Identify primary key column index in UI table
-        primary_key_index = None
-        for col_idx in range(self.table_widget.columnCount()):
-            if self.table_widget.horizontalHeaderItem(col_idx).text() == primary_key_column:
-                primary_key_index = col_idx
-                break
-
-        self.table_widget.clearContents()  # 🔥 Force clear table before reloading
-        self.table_widget.setRowCount(total_rows)  # 🔥 Dynamically set row count
-
-        # Check if we're dealing with the 'jobs' table and the 'status' column
-        if table_name == "jobs":
-            status_column_index = None
-            for col_idx in range(self.table_widget.columnCount()):
-                if self.table_widget.horizontalHeaderItem(col_idx).text().lower() == "status":
-                    status_column_index = col_idx
-                    break
-
-            #print(f"🟢 DEBUG: Status column index detected at {status_column_index}")
-
-            for row_idx in range(total_rows):  # Only loop through available rows
-                row_data = data[row_idx]
-                for col_idx, value in enumerate(row_data):
-                    item = QTableWidgetItem(str(value) if value is not None else "")
-
-                    # ✅ Store primary key in Qt UserRole
-                    if col_idx == primary_key_index:
-                        item.setData(Qt.UserRole, str(value))  # Store primary key for reference
-
-                    if col_idx == status_column_index:
-                        # 🔥 Recreate dropdown every time
-                        status_combo = QComboBox()
-                        status_combo.addItems(["Waiting for Parts", "In Progress", "Completed", "Picked Up"])
-
-                        
-                        if value in ["Waiting for Parts", "In Progress", "Completed", "Picked Up"]:
-                            status_combo.setCurrentText(value)
-                        else:
-                            status_combo.setCurrentText("In Progress")  # Default
-
-                        status_combo.setEditable(False)
-                        status_combo.installEventFilter(self)
-
-                        self.table_widget.setCellWidget(row_idx, col_idx, status_combo)
-
-                        status_combo.currentTextChanged.connect(
-                            lambda text, row=row_idx: self.update_status_and_database(row, text)
-                        )
-
-                    else:
-                        self.table_widget.setItem(row_idx, col_idx, item)
-
-        else:
-            # Handle other tables (not jobs)
-            for row_idx in range(total_rows):  # Only loop through available rows
-                row_data = data[row_idx]
-                for col_idx, value in enumerate(row_data):
-                    item = QTableWidgetItem(str(value) if value is not None else "")
-
-                    # ✅ Store primary key in Qt UserRole
-                    if col_idx == primary_key_index:
-                        item.setData(Qt.UserRole, str(value))  # Store primary key for reference
-
-                    self.table_widget.setItem(row_idx, col_idx, item)
-
-        self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table_widget.verticalHeader().setVisible(False)
+        self.table_offset = update_table_offset_ui(
+            table_widget=self.table_widget,
+            pagination_label=self.pagination_label,
+            prev_button=self.prev_button,
+            next_button=self.next_button,
+            fetch_function=self.fetch_data,
+            table_name=self.table_name,
+            current_offset=new_offset,
+            limit=self.table_limit,
+            change=0,
+            refresh_callback=lambda: refresh_page(self, offset=new_offset),
+            parent=self
+        )
 
     def update_database(self, item): #UI + DATA_ACCESS
         """Ensures only valid records are updated, and deleted rows are ignored."""
@@ -389,9 +284,6 @@ class DatabaseApp(QMainWindow):
         finally:
             self.table_widget.blockSignals(False)  # Allow further edits
 
-    def eventFilter(self, source, event): #MAIN
-        return event_filter(self, source, event)
-
     def update_status_and_database(self, row_idx, new_status): #UI + DATA_ACCESS
         """Handles the change of status and updates the database."""
         try:
@@ -436,7 +328,7 @@ class DatabaseApp(QMainWindow):
    
     def view_table_data(self, table_name): #UI + DATA_ACCESS
         """Displays and manages data in a selected table with modern UI, search, inline editing, and pagination."""
-
+        self.table_name = table_name
         try:
             # ✅ Store pagination values
             self.table_offset = 0
@@ -539,7 +431,15 @@ class DatabaseApp(QMainWindow):
                 }
             """)
 
-            self.load_table(table_name)  # ✅ Now correctly loads the table
+            load_table(
+                table_widget=self.table_widget,
+                cursor=self.cursor,
+                table_name=table_name,
+                update_status_callback=self.update_status_and_database,
+                table_offset=self.table_offset,
+                limit=50,
+                event_filter=self  # optional, only if you were using installEventFilter
+            )
 
             self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
             self.table_widget.verticalHeader().setVisible(False)
@@ -731,9 +631,7 @@ class DatabaseApp(QMainWindow):
 
             if not results:
                 QMessageBox.information(self, "No Results", "No records found matching your search.")
-            else:
-                # Pass the necessary arguments to populate_table
-                from ui import populate_table  # Import function from ui.py
+            else:                
                 populate_table(self.table_widget, self.current_table_name, results)  # ✅ Display all search results
 
         except mariadb.Error as e:
@@ -762,7 +660,16 @@ class DatabaseApp(QMainWindow):
             self.conn.commit()  # Commit any changes before closing the previous cursor
 
             # Now, simply call load_table to reload the data
-            self.load_table(self.current_table_name)
+            load_table(
+                table_widget=self.table_widget,
+                cursor=self.cursor,
+                table_name=self.current_table_name,
+                update_status_callback=self.update_status_and_database,
+                table_offset=self.table_offset,
+                limit=50,
+                event_filter=self  # optional
+            )
+
 
             print(f"✅ Table {self.current_table_name} refreshed successfully.")
 
