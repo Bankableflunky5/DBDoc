@@ -1,1 +1,9 @@
-{"host": "localhost", "database": "test", "password": ""}
+{
+    "host": "localhost",
+    "database": "ld",
+    "password": "",
+    "ssl": {
+        "enabled": false,
+        "cert_path": "C:/ssl/mariadb"
+    }
+}

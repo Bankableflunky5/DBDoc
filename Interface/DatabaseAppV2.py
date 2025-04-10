@@ -82,9 +82,9 @@ class DatabaseApp(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.login_page = create_login_page(self)
-        self.settings_page, self.host_entry, self.database_entry = create_settings_page(
+        self.settings_page, self.host_entry, self.database_entry, self.ssl_checkbox, self.ssl_path_entry = create_settings_page(
             self.database_config,
-            lambda: save_settings(self.database_config, self.host_entry, self.database_entry, self.password_entry, self.SETTINGS_FILE, self.central_widget, self.login_page),
+            lambda: save_settings(self.database_config, self.host_entry, self.database_entry, self.password_entry, self.ssl_checkbox, self.ssl_path_entry, self.SETTINGS_FILE, self.central_widget, self.login_page, self),
             lambda: self.central_widget.setCurrentWidget(self.login_page)
         )
 
@@ -100,57 +100,58 @@ class DatabaseApp(QMainWindow):
         )
         self.scheduler_thread.start()
     
-    def login(self):#UI +DATA_ACCESSS
-        """Handles the login process securely."""
+    def login(self):  # UI + Data Access
+        """Handles the login process securely with optional SSL."""
         username = self.username_entry.text()
         password = self.password_entry.text()
         host = self.database_config.get("host", "localhost")
         database = self.database_config.get("database", "")
 
+        ssl_config = self.database_config.get("ssl", {})
+        ssl_enabled = ssl_config.get("enabled", False)
+        ssl_cert_path = ssl_config.get("cert_path", "").strip()
 
-          # Specify the SSL certificate paths (adjust to your paths)
-        ssl_ca = "C:/ssl/mariadb/mariadb.crt"  # Certificate Authority (CA) file
-        ssl_cert = "C:/ssl/mariadb/mariadb.crt"  # Client certificate file
-        ssl_key = "C:/ssl/mariadb/mariadb.key "  # Client private key file
-
-        print(f"🔍 Debug (Before MessageBox) - Database: {database}, Host: {host}")  # ✅ Debug print
+        print(f"🔍 Debug (Before Connection) - Database: {database}, Host: {host}, SSL: {ssl_enabled}, Cert: {ssl_cert_path}")
 
         if not username or not password or not database:
             QMessageBox.critical(self, "Error", "Please fill in all fields and ensure settings are configured.")
             return
 
         try:
+            connection_kwargs = {
+                "user": username,
+                "password": password,
+                "host": host,
+                "database": database
+            }
+
+            # Add SSL parameters if SSL is enabled
+            if ssl_enabled and ssl_cert_path:
+                connection_kwargs.update({
+                    "ssl_ca": ssl_cert_path,
+                    "ssl_cert": ssl_cert_path,
+                    "ssl_key": ssl_cert_path
+                })
+                print("🔐 SSL enabled - Using cert path:", ssl_cert_path)
+            else:
+                print("⚠️ SSL disabled or no cert path provided.")
+
             # Attempt Database Connection
-            self.conn = mariadb.connect(
-                user=username,
-                password=password,
-                host=host,
-                database=database,
-                ssl_ca=ssl_ca,
-                ssl_cert=ssl_cert,
-                ssl_key=ssl_key
-        
-            )
+            self.conn = mariadb.connect(**connection_kwargs)
             self.cursor = self.conn.cursor()
 
-            # ✅ Clear the Password Field After Login
             self.password_entry.clear()
 
-            # ✅ Show Success Message (Debug print before message box)
             message = f"✅ Successfully connected to:\n\n📂 Database: {database}\n🌍 Host: {host}"
-            print(f"🔍 Debug (Message Box Content) - {message}")  # ✅ Debug print before showing box
-
+            print(f"🔍 Debug (Message Box Content) - {message}")
             QMessageBox.information(self, "Success", message)
 
-            # ✅ Redirect to Main Menu
             main_menu_page(self)
 
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"Database connection failed: {e}")
-
-            # ✅ Clear the Password Field Even on Failure
             self.password_entry.clear()
-    
+
     def keyPressEvent(self, event): #MAIN
         keyPressEvent(self, event)  # Calls the one from ui.py
 

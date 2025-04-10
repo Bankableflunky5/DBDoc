@@ -23,21 +23,15 @@ SCHEDULE_FILE_PATH = "backup_schedule.json"
 
 
 def save_database_config(database_config, settings_file):
-    """Save database configuration settings into a JSON file."""
-
+    """
+    Save the complete database configuration to a JSON file.
+    """
     try:
-        # Save the current password, host, and database information into the config
-        database_config["password"] = database_config["password"]  # You can modify this to match your structure
-        database_config["host"] = database_config["host"]
-        database_config["database"] = database_config["database"]
-
         with open(settings_file, "w") as file:
-            json.dump(database_config, file)
-
-        return "Settings saved successfully."
-
+            json.dump(database_config, file, indent=4)
+        return "✅ Settings saved successfully."
     except Exception as e:
-        return f"Failed to save settings: {e}"
+        return f"❌ Failed to save settings: {e}"
 
 def schedule_backup(interval="daily", time_of_day="00:00", backup_directory=None, backup_func=None):
     """
@@ -285,9 +279,34 @@ def view_current_schedule(parent):
         QMessageBox.information(parent, "No Schedule", "⚠️ No backup schedule is set.")
 
 def load_settings():
-    """Loads the database settings from a JSON file."""
+    """Loads the database settings from a JSON file, including SSL settings."""
+    default_config = {
+        "host": "localhost",
+        "database": "",
+        "password": "",
+        "ssl": {
+            "enabled": False,
+            "cert_path": ""
+        }
+    }
+
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, "r") as file:
-            return json.load(file)
-    return {"host": "localhost", "database": ""}
+        try:
+            with open(SETTINGS_FILE, "r") as file:
+                loaded_config = json.load(file)
+
+                # Update top-level fields
+                default_config["host"] = loaded_config.get("host", "localhost")
+                default_config["database"] = loaded_config.get("database", "")
+                default_config["password"] = loaded_config.get("password", "")
+
+                # Update nested SSL config
+                ssl_config = loaded_config.get("ssl", {})
+                default_config["ssl"]["enabled"] = ssl_config.get("enabled", False)
+                default_config["ssl"]["cert_path"] = ssl_config.get("cert_path", "")
+
+        except Exception as e:
+            print(f"⚠️ Failed to load settings: {e}")
+
+    return default_config
 
