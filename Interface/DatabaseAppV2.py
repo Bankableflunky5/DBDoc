@@ -154,7 +154,7 @@ class DatabaseApp(QMainWindow):
             parent=self
         )
 
-    def update_database(self, item): #MAIN
+    def update_database(self, item):  # MAIN
         self.table_widget.blockSignals(True)
 
         try:
@@ -165,6 +165,7 @@ class DatabaseApp(QMainWindow):
             pk_column = get_primary_key_column(self.cursor, self.current_table_name)
             if not pk_column:
                 print("❌ ERROR: No primary key found.")
+                self._update_status("❌ No primary key found.")
                 return
 
             pk_index = next(
@@ -173,67 +174,75 @@ class DatabaseApp(QMainWindow):
                 None
             )
             if pk_index is None:
-                print(f"❌ ERROR: PK column '{pk_column}' not found in UI.")
+                print(f"❌ ERROR: ID column '{pk_column}' not found in UI.")
+                self._update_status(f"❌ ID column '{pk_column}' not found.")
                 return
 
             pk_item = self.table_widget.item(row, pk_index)
             if not pk_item:
-                print(f"❌ ERROR: No PK item found in row {row}.")
+                print(f"❌ ERROR: No ID item found in row {row}.")
+                self._update_status(f"❌ No ID item found in row {row}.")
                 return
 
             old_pk = pk_item.data(Qt.UserRole) or pk_item.text().strip()
-
             db_old_pk = check_primary_key_exists(self.cursor, self.current_table_name, pk_column, old_pk)
+
             if db_old_pk is None:
-                print(f"❌ ERROR: Old PK {old_pk} not found in DB.")
+                print(f"❌ ERROR: Old ID {old_pk} not found in DB.")
+                self._update_status(f"❌ ID {old_pk} not found in database.")
                 return
 
             if new_value == str(db_old_pk):
-                print("❌ New value is same as current. Skipping.")
+                self._update_status("ℹ️ Value unchanged.")
                 return
 
-            # Updating PK
+            now = datetime.now().strftime("%H:%M:%S")
+
             if column == pk_index:
+                # Updating PK
                 if check_duplicate_primary_key(self.cursor, self.current_table_name, pk_column, new_value):
                     print(f"❌ PK {new_value} already exists.")
+                    self._update_status(f"❌ Duplicate PK: {new_value}")
                     pk_item.setText(str(db_old_pk))  # revert
                     return
 
                 update_primary_key(self.cursor, self.conn, self.current_table_name, pk_column, db_old_pk, new_value)
                 pk_item.setData(Qt.UserRole, new_value)
                 pk_item.setText(str(new_value))
-                print(f"✅ PK updated from {db_old_pk} → {new_value}")
+                print(f"✅ ID updated from {db_old_pk} → {new_value}")
+                self._update_status(f"🔑 ID updated from {db_old_pk} to {new_value}")
 
             else:
                 col_name = self.table_widget.horizontalHeaderItem(column).text()
                 update_column(self.cursor, self.conn, self.current_table_name, col_name, new_value, pk_column, db_old_pk)
-                print(f"✅ Column '{col_name}' updated to '{new_value}'.")
+                self._update_status(f"✅ Updated '{col_name}' to '{new_value}' for ID {db_old_pk}")
 
-            # Handle auto_increment if needed
+
             update_auto_increment_if_needed(self.cursor, self.conn, self.current_table_name, pk_column)
 
         except Exception as e:
             print(f"❌ ERROR updating database: {e}")
             if column == pk_index:
                 self.table_widget.item(row, pk_index).setText(str(db_old_pk))
+            self._update_status("❌ Error occurred while updating.")
 
         finally:
             self.table_widget.blockSignals(False)
 
-    def update_status_and_database(self, row_idx, new_status): #MAIN
+    def update_status_and_database(self, row_idx, new_status):  # MAIN
         try:
-            # Get the primary key value from the UI
             primary_key_item = self.table_widget.item(row_idx, 0)
             if not primary_key_item:
                 print(f"❌ ERROR: No primary key item found in row {row_idx}.")
+                self._update_status(f"❌ No primary key item in row {row_idx}")
                 return
 
             pk_value = primary_key_item.data(Qt.UserRole) or primary_key_item.text().strip()
 
-            # Fetch primary key column name dynamically
             pk_column = fetch_primary_key_column(self.cursor, self.current_table_name)
             if not pk_column:
                 print(f"❌ ERROR: No primary key column found for {self.current_table_name}")
+                self._update_status(f"❌ No PK column for '{self.current_table_name}'")
                 return
 
             success = update_status(
@@ -247,12 +256,20 @@ class DatabaseApp(QMainWindow):
 
             if success:
                 print(f"✅ Status updated to '{new_status}' for {pk_column} = {pk_value}")
-                self.refresh_table()
+                self._update_status(f"✅ Status updated to '{new_status}' for {pk_value}")
+                self.refresh_table(suppress_status=True)
             else:
                 print(f"❌ Failed to update status.")
+                self._update_status(f"❌ Failed to update status for ID {pk_value}")
 
         except Exception as e:
             print(f"❌ ERROR in update_status_and_database: {e}")
+            self._update_status(f"❌ Error: {str(e)}")
+
+    def _update_status(self, message: str):
+        if hasattr(self, "status_bar"):
+            now = datetime.now().strftime("%H:%M:%S")
+            self.status_bar.setText(f"{message} at {now}.")
 
     def view_table_data(self, table_name): #MAIN
         self.table_name = table_name
@@ -290,7 +307,7 @@ class DatabaseApp(QMainWindow):
             self.pagination_label.setText(f"Page {current_page}")
 
             # ✅ Create the dialog UI (next step)
-            self.dialog, prev_btn, next_btn, self.refresh_button = create_table_view_dialog(
+            self.dialog, prev_btn, next_btn, self.refresh_button, self.status_bar = create_table_view_dialog(
             table_name=table_name,
             columns=columns,
             table_widget=self.table_widget,
@@ -319,44 +336,48 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(None, "Error", f"Failed to load data for {table_name}: {e}")
 
-    def search_table(self, column, search_text):  # UI + DATA_ACCESS
+    def search_table(self, column, search_text):  #MAIN
         """Search for records in the selected table without pagination restrictions."""
 
         if not search_text.strip():
-            QMessageBox.warning(self, "Warning", "Please enter a search query.")
+            self.status_bar.setText("ℹ️ Enter text to search.")
             return
 
         try:
             search_text = f"%{search_text}%"
-
-            # ✅ **Remove LIMIT and OFFSET to search the entire table**
             query = f"SELECT * FROM `{self.current_table_name}` WHERE `{column}` LIKE %s ORDER BY `{column}` DESC;"
             self.cursor.execute(query, (search_text,))
-
             results = self.cursor.fetchall()
 
             if not results:
-                QMessageBox.information(self, "No Results", "No records found matching your search.")
-            else:                
-                populate_table(self.table_widget, self.current_table_name, results)  # ✅ Display all search results
+                self.table_widget.setRowCount(0)
+                self.status_bar.setText(f"⚠ No matches found for '{search_text.strip('%')}'.")
+            else:
+                populate_table(self.table_widget, self.current_table_name, results)
+                now = datetime.now().strftime("%H:%M:%S")
+                self.status_bar.setText(f"🔍 Found {len(results)} result(s) for '{search_text.strip('%')}' at {now}.")
+
 
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"❌ Database Error: {e}")
+            self.status_bar.setText("❌ Error occurred while searching.")
 
-    def refresh_table(self):
+    def refresh_table(self, suppress_status=False):
         """UI logic to refresh the table."""
         if self.is_refreshing:
             print("❌ Refresh is already in progress. Please wait...")
+            self.status_bar.setText("⏳ Refresh already in progress...")
             return
-
-        self.is_refreshing = True
-        self.refresh_button.setEnabled(False)
+        
+        if not suppress_status:
+            self.is_refreshing = True
+            self.refresh_button.setEnabled(False)
+            self.status_bar.setText("🔄 Refreshing table...")
 
         try:
             self.table_widget.itemChanged.disconnect(self.update_database)
             self.table_widget.setRowCount(0)
 
-            # ✅ Just call load_table as it was used in view_table_data
             load_table(
                 table_widget=self.table_widget,
                 cursor=self.cursor,
@@ -368,10 +389,15 @@ class DatabaseApp(QMainWindow):
             )
 
             print(f"✅ Table {self.current_table_name} refreshed successfully.")
+            if not suppress_status:
+                now = datetime.now().strftime("%H:%M:%S")
+                self.status_bar.setText(f"✅ Refreshed '{self.current_table_name}' at {now}")
+
 
         except Exception as e:
             print(f"❌ ERROR: Failed to refresh table {self.current_table_name}: {e}")
             QMessageBox.critical(self, "Database Error", f"Failed to refresh table: {e}")
+            self.status_bar.setText("❌ Failed to refresh table.")
 
         finally:
             self.table_widget.itemChanged.connect(self.update_database)
@@ -503,12 +529,17 @@ class DatabaseApp(QMainWindow):
 
                 msg_box.exec_()
 
+                now = datetime.now().strftime("%H:%M:%S")
+                if hasattr(self, "status_bar"):
+                    self.status_bar.setText(f"✅ Record added to '{table_name}' at {now}.")
 
                 # ✅ Refresh the table without passing arguments
-                self.refresh_table()  # ✅ Correct function call
+                self.refresh_table(suppress_status=True) # ✅ Correct function call
 
                 add_window.close()  # Close the add window
                 self.is_adding_new_record = False  # Reset flag
+
+                
 
             except mariadb.Error as e:
                 QMessageBox.critical(add_window, "❌ Error", f"Failed to add record: {e}")
@@ -526,69 +557,81 @@ class DatabaseApp(QMainWindow):
         # Show the dialog
         add_window.exec_()
 
-    def delete_record(self, table_name, table_widget, primary_key_column): #UI + DATA_ACCESS
+    def delete_record(self, table_name, table_widget, primary_key_column):  # UI + DATA_ACCESS
         """Deletes a selected record from the table safely with error handling."""
-        
+
         global is_deletion
         is_deletion = True  # Prevent updates during deletion
 
         selected_row = table_widget.currentRow()
         if selected_row < 0:
             QMessageBox.warning(self, "Error", "⚠ No record selected.")
-            is_deletion = False  # Reset flag
+            self._update_status("⚠ No record selected for deletion.")
+            is_deletion = False
             return
 
         primary_key_value = table_widget.item(selected_row, 0).text()
 
         confirm = QMessageBox.question(
-            self, "Confirm Delete", f"🗑 Are you sure you want to delete this record ({primary_key_value})?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            self,
+            "Confirm Delete",
+            f"🗑 Are you sure you want to delete this record ({primary_key_value})?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
         )
 
         if confirm == QMessageBox.Yes:
             try:
-                # 🔍 Check if record exists before deleting
-                self.cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {primary_key_column} = %s;", (primary_key_value,))
+                # 🔍 Check if record exists
+                self.cursor.execute(
+                    f"SELECT COUNT(*) FROM {table_name} WHERE {primary_key_column} = %s;",
+                    (primary_key_value,)
+                )
                 record_count = self.cursor.fetchone()[0]
 
                 if record_count == 0:
                     QMessageBox.warning(self, "Warning", "⚠ Record not found. It may have already been deleted.")
+                    self._update_status(f"⚠ Record {primary_key_value} not found.")
                     is_deletion = False
                     return
 
-                # ✅ Proceed with deletion
-                self.cursor.execute(f"DELETE FROM {table_name} WHERE {primary_key_column} = %s;", (primary_key_value,))
+                # ✅ Delete the record
+                self.cursor.execute(
+                    f"DELETE FROM {table_name} WHERE {primary_key_column} = %s;",
+                    (primary_key_value,)
+                )
                 self.conn.commit()
 
-                # Check if there are any remaining records in the table
+                # 🔄 Handle auto-increment
                 self.cursor.execute(f"SELECT COUNT(*) FROM {table_name};")
                 remaining_records = self.cursor.fetchone()[0]
 
                 if remaining_records > 0:
-                    # If there are still records, adjust auto-increment to the next value
                     self.cursor.execute(f"SELECT MAX({primary_key_column}) FROM {table_name};")
                     highest_primary_key = self.cursor.fetchone()[0]
 
                     if highest_primary_key is not None:
-                        # Adjust auto-increment to the next value
-                        self.cursor.execute(f"ALTER TABLE {table_name} AUTO_INCREMENT = {highest_primary_key + 1};")
+                        self.cursor.execute(
+                            f"ALTER TABLE {table_name} AUTO_INCREMENT = {highest_primary_key + 1};"
+                        )
                         self.conn.commit()
                 else:
-                    # If no records remain, set auto-increment to 1
                     self.cursor.execute(f"ALTER TABLE {table_name} AUTO_INCREMENT = 1;")
                     self.conn.commit()
 
-                # ✅ Reload table data properly
-                self.refresh_table()  # ✅ Fix the UI issue
+                # ✅ Refresh the UI
+                self.refresh_table(suppress_status=True)
 
-                # ✅ Show success message
+                # ✅ Show dialog and update status bar
                 QMessageBox.information(self, "Success", f"✅ Record {primary_key_value} deleted successfully.")
+                self._update_status(f"🗑 Record {primary_key_value} deleted")
 
             except mariadb.Error as e:
                 handle_db_error(e, f"Failed to delete record from {table_name}")
+                self._update_status(f"❌ Failed to delete record: {e}")
 
             finally:
-                is_deletion = False  # Reset flag
+                is_deletion = False
 
     def view_notes(self, job_id=None): #UI + DATA_ACCESS
         """Displays and edits job notes for a given Job ID."""
@@ -1718,156 +1761,6 @@ class DatabaseApp(QMainWindow):
         customer_window.setLayout(layout)
         customer_window.exec_()
 
-    def run_query(self): #UI + DATA_ACCESS
-        """Creates a Query Execution Window for running custom SQL queries."""
-
-        # Create a new dialog window
-        query_window = QDialog(self)
-        query_window.setWindowTitle("📊 Run SQL Query")
-        query_window.setGeometry(100, 100, 700, 600)  # Larger window for better readability
-        layout = QVBoxLayout()
-
-        # Query Input Section
-        query_label = QLabel("📝 Enter SQL Query:")
-        query_label.setStyleSheet("font-weight: bold; color: #3A9EF5; font-size: 14px;")
-        layout.addWidget(query_label)
-
-        query_input = QTextEdit()
-        query_input.setPlaceholderText("Type your SQL query here...")
-        query_input.setStyleSheet("""
-            QTextEdit {
-                background-color: #2E2E2E;
-                color: white;
-                padding: 8px;
-                border-radius: 5px;
-            }
-        """)
-        query_input.setFixedHeight(120)  # Adjusted size for better readability
-        layout.addWidget(query_input)
-
-        # Results Table Section
-        results_label = QLabel("📊 Query Results:")
-        results_label.setStyleSheet("font-weight: bold; color: #3A9EF5; font-size: 14px;")
-        layout.addWidget(results_label)
-
-        results_table = QTableWidget()
-        results_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #2E2E2E;
-                color: white;
-                gridline-color: #3A9EF5;
-                selection-background-color: #3A9EF5;
-                selection-color: white;
-                border-radius: 5px;
-            }
-            QHeaderView::section {
-                background-color: #3A9EF5;
-                color: white;
-                font-weight: bold;
-                padding: 5px;
-                border: 1px solid #3A9EF5;
-            }
-            QTableWidget::item {
-                background-color: #444444;
-            }
-            QTableWidget::item:alternate {
-                background-color: #3A3A3A;
-            }
-        """)
-        layout.addWidget(results_table)
-
-        query_results = []  # Store query results for export
-
-        # **Execute Query Function**
-        def execute_query():
-            nonlocal query_results
-            query = query_input.toPlainText().strip()
-
-            if not query:
-                QMessageBox.critical(query_window, "⚠ Error", "Query cannot be empty.")
-                return
-
-            try:
-                self.cursor.execute(query)
-                if query.lower().startswith("select"):
-                    query_results = self.cursor.fetchall()
-                    headers = [desc[0] for desc in self.cursor.description]
-
-                    # Populate results table
-                    results_table.setRowCount(len(query_results))
-                    results_table.setColumnCount(len(headers))
-                    results_table.setHorizontalHeaderLabels(headers)
-
-                    for row_idx, row in enumerate(query_results):
-                        for col_idx, value in enumerate(row):
-                            results_table.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
-
-                    results_table.resizeColumnsToContents()
-                    QMessageBox.information(query_window, "✅ Success", "Query executed successfully.")
-
-                else:
-                    self.conn.commit()
-                    QMessageBox.information(query_window, "✅ Success", f"Query executed successfully. {self.cursor.rowcount} rows affected.")
-
-            except mariadb.Error as e:
-                QMessageBox.critical(query_window, "⚠ Error", f"Failed to execute query: {e}")
-
-        # **Export to Excel Function**
-        def export_to_excel():
-            if not query_results:
-                QMessageBox.critical(query_window, "⚠ Error", "No data to export.")
-                return
-
-            file_path, _ = QFileDialog.getSaveFileName(query_window, "Save File", "", "Excel Files (*.xlsx);;All Files (*)")
-            if not file_path:
-                return
-
-            try:
-                headers = [desc[0] for desc in self.cursor.description]
-                df = pd.DataFrame(query_results, columns=headers)
-                df.to_excel(file_path, index=False)
-                QMessageBox.information(query_window, "✅ Success", f"Results exported successfully to {file_path}.")
-            except Exception as e:
-                QMessageBox.critical(query_window, "⚠ Error", f"Failed to export to Excel: {e}")
-
-        # **Clear Query Function**
-        def clear_query():
-            query_input.clear()
-
-        # **Clear Results Function**
-        def clear_results():
-            results_table.setRowCount(0)
-
-        # **Button Layout**
-        button_layout = QHBoxLayout()
-
-        execute_button = QPushButton("🚀 Execute Query")
-        execute_button.setStyleSheet("background-color: #3A9EF5; color: white; padding: 8px; border-radius: 5px;")
-        execute_button.clicked.connect(execute_query)
-
-        export_button = QPushButton("📂 Export to Excel")
-        export_button.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px; border-radius: 5px;")
-        export_button.clicked.connect(export_to_excel)
-
-        clear_query_button = QPushButton("📝 Clear Query")
-        clear_query_button.setStyleSheet("background-color: #D9534F; color: white; padding: 8px; border-radius: 5px;")
-        clear_query_button.clicked.connect(clear_query)
-
-        clear_results_button = QPushButton("🗑 Clear Results")
-        clear_results_button.setStyleSheet("background-color: #D9534F; color: white; padding: 8px; border-radius: 5px;")
-        clear_results_button.clicked.connect(clear_results)
-
-        button_layout.addWidget(execute_button)
-        button_layout.addWidget(export_button)
-        button_layout.addWidget(clear_query_button)
-        button_layout.addWidget(clear_results_button)
-
-        layout.addLayout(button_layout)
-
-        # Show the Query Window
-        query_window.setLayout(layout)
-        query_window.exec_()
-    
     def dashboard_page(self): #UI + DATA_ACCESS
         """Displays the dashboard with income prediction and new features."""
         

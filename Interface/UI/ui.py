@@ -2,78 +2,35 @@
 # 📦 Standard Library
 import os
 from functools import partial
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 🎨 PyQt5 Core
 from PyQt5.QtCore import (
-    Qt, QEasingCurve, QPropertyAnimation, QByteArray, QEvent
+    Qt, QEvent, QPropertyAnimation, QEasingCurve
 )
 
 # 🖼 PyQt5 GUI Elements
-from PyQt5.QtGui import QFont, QFontMetrics
+from PyQt5.QtGui import QFont, QFontMetrics, QIcon
 
 # 🧱 PyQt5 Widgets
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QFileDialog, QFormLayout, QFrame, QHeaderView,
-    QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QTableWidgetItem, QVBoxLayout, QWidget, QHBoxLayout, QSizePolicy
+    QAction, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame,
+    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSpacerItem, QStyle,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView, QTextEdit
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 🧩 Project Modules
+from data_access import (
+    close_connection, fetch_table_data, fetch_primary_key_column,
+    execute_sql_query, export_query_results_to_excel
+)
 from FILE_OPS.file_ops import (
-    view_current_schedule,
-    clear_current_schedule,
-    save_backup_schedule,
-    export_database_to_excel, save_database_config
+    view_current_schedule, clear_current_schedule,
+    save_backup_schedule, export_database_to_excel, save_database_config
 )
 from db_utils import restore_database, change_db_password, backup_database
-
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QFileDialog, QHBoxLayout, QCheckBox
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
-import os
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QCheckBox,
-    QFileDialog, QMessageBox, QHBoxLayout, QFormLayout, QGroupBox
-)
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QGroupBox, QFormLayout
-)
-from PyQt5.QtCore import Qt
-from functools import partial
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QPushButton, QMessageBox
-)
-from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtCore import Qt, QPropertyAnimation
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QLineEdit, QAction,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
-    QMessageBox, QSpacerItem, QSizePolicy
-)
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStyle
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QLineEdit, QAction,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
-    QMessageBox, QSpacerItem, QSizePolicy
-)
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStyle
-from PyQt5.QtWidgets import QMessageBox
-from data_access import close_connection
-from PyQt5.QtWidgets import QTableWidgetItem, QComboBox, QHeaderView
-from PyQt5.QtCore import Qt
-from data_access import fetch_table_data, fetch_primary_key_column
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QLineEdit,
-    QComboBox, QAction, QSizePolicy, QSpacerItem, QStyle
-)
-from PyQt5.QtCore import Qt
-
 
 
 
@@ -891,7 +848,7 @@ def main_menu_page(parent, username ="User"):
     button_data = [
         ("📁  Tables", parent.view_tables),
         ("📝  Add Job Notes", lambda: ask_for_job_id(parent)),
-        ("🔍  Query", parent.run_query),
+        ("🔍  Query", lambda: run_query(parent.cursor, parent.conn, parent)),
         ("📑  Customer Lookup", parent.Customer_report),
         ("📊  Dashboard", parent.dashboard_page),
         ("⚙️  Settings", lambda: options_page(parent))
@@ -1032,7 +989,7 @@ def options_page(parent):
     parent.central_widget.addWidget(parent.settings_page)
     parent.central_widget.setCurrentWidget(parent.settings_page)
 
-def apply_button_hover_animation(parent, button): #UI
+def apply_button_hover_animation(parent, button):
         """Applies a hover animation effect to a QPushButton."""
         original_width = button.sizeHint().width()
         animation = QPropertyAnimation(button, QByteArray(b"minimumWidth"))
@@ -1121,7 +1078,7 @@ def open_scheduling_options_dialog(parent):
     scheduling_dialog.setLayout(layout)
     scheduling_dialog.exec_() 
 
-def keyPressEvent(parent, event): #UI
+def keyPressEvent(parent, event): 
     """Handles key press events for the login window."""
     if event.key() == Qt.Key_Return:  # Check if the "Enter" key is pressed
         parent.login()  # Call the login method
@@ -1469,7 +1426,7 @@ def load_table(table_widget, cursor, table_name, update_status_callback, table_o
     if hasattr(cursor, "connection"):
         cursor.connection.commit()  # Pull latest committed data
         cursor = cursor.connection.cursor()  # Create a fresh cursor
-        
+
     data = fetch_table_data(cursor, table_name, limit, table_offset)
     total_rows = len(data)
 
@@ -1582,13 +1539,13 @@ def create_table_view_dialog(
 
     main_layout = QVBoxLayout()
 
-    # Title
+    # ───────────────────── Title
     title = QLabel(f"📊 {table_name} Data")
     title.setAlignment(Qt.AlignCenter)
     title.setStyleSheet("color: #2D9CDB; padding: 20px; font-size: 20px;")
     main_layout.addWidget(title)
 
-    # Search
+    # ───────────────────── Search
     search_layout = QHBoxLayout()
     search_label = QLabel("🔍 Search by:")
     search_label.setFont(QFont("Segoe UI", 10))
@@ -1596,7 +1553,6 @@ def create_table_view_dialog(
     column_dropdown = QComboBox()
     column_dropdown.addItems(columns)
     column_dropdown.setFont(QFont("Segoe UI", 10))
-    # 🔽 Set style right after creation
     column_dropdown.setStyleSheet("""
         background-color: #2A2A2A;
         color: #E0E0E0;
@@ -1608,7 +1564,6 @@ def create_table_view_dialog(
     search_entry = QLineEdit()
     search_entry.setPlaceholderText("Enter search query...")
     search_entry.setFont(QFont("Segoe UI", 10))
-    # 🔽 Set style here too
     search_entry.setStyleSheet("""
         background-color: #2A2A2A;
         color: #E0E0E0;
@@ -1617,17 +1572,20 @@ def create_table_view_dialog(
         border: 1px solid #3A3A3A;
     """)
 
+    # Clear action
     clear_action = QAction(search_entry)
     clear_action.setIcon(search_entry.style().standardIcon(QStyle.SP_DialogCloseButton))
     clear_action.triggered.connect(search_entry.clear)
     search_entry.addAction(clear_action, QLineEdit.TrailingPosition)
 
-    search_button = QPushButton("Search 🔎")
-    search_button.clicked.connect(lambda: search_handler(column_dropdown.currentText(), search_entry.text()))
+    # Buttons
+    #search_button = QPushButton("Search 🔎")
+    #search_button.clicked.connect(lambda: search_handler(column_dropdown.currentText(), search_entry.text()))
+
     refresh_button = QPushButton("🔃")
     refresh_button.clicked.connect(refresh_handler)
 
-    for btn in [search_button, refresh_button]:
+    '''for btn in [search_button, refresh_button]:
         btn.setFont(QFont("Segoe UI", 10))
         btn.setStyleSheet("""
             QPushButton {
@@ -1639,16 +1597,19 @@ def create_table_view_dialog(
             QPushButton:hover {
                 background-color: #2385BA;
             }
-        """)
+        """)'''
+
+    # 🧠 LIVE SEARCH
+    search_entry.textChanged.connect(lambda text: search_handler(column_dropdown.currentText(), text))
 
     search_layout.addWidget(search_label)
     search_layout.addWidget(column_dropdown)
     search_layout.addWidget(search_entry)
-    search_layout.addWidget(search_button)
+    #search_layout.addWidget(search_button)
     search_layout.addWidget(refresh_button)
     main_layout.addLayout(search_layout)
 
-    # Table
+    # ───────────────────── Table
     scroll_area = QScrollArea()
     scroll_area.setWidgetResizable(True)
 
@@ -1661,6 +1622,9 @@ def create_table_view_dialog(
         selection-color: #FFFFFF;
         font-size: 10pt;
     }
+    QTableWidget::item {
+        background-color: #2E2E2E;
+    }
     QTableWidget::item:alternate {
         background-color: #242424;
     }
@@ -1671,16 +1635,13 @@ def create_table_view_dialog(
         padding: 8px;
         border: 0px;
     }
-""")
+    """)
 
-    
     table_widget.setAlternatingRowColors(True)
-
     scroll_area.setWidget(table_widget)
     main_layout.addWidget(scroll_area)
 
-
-    # Pagination
+    # ───────────────────── Pagination
     pagination_layout = QHBoxLayout()
     pagination_layout.addStretch(1)
 
@@ -1714,7 +1675,7 @@ def create_table_view_dialog(
     pagination_layout.addStretch(1)
     main_layout.addLayout(pagination_layout)
 
-    # Buttons Section
+    # ───────────────────── CRUD Buttons
     button_layout = QHBoxLayout()
     button_layout.addStretch(1)
 
@@ -1743,11 +1704,177 @@ def create_table_view_dialog(
     button_layout.addWidget(styled_button("🗑 Delete Record", delete_handler, "#D9534F", "#C9302C"))
     button_layout.addWidget(styled_button("❌ Close", close_handler, "#444444", "#666666"))
     button_layout.addStretch(1)
-
     main_layout.addLayout(button_layout)
+
+    # ───────────────────── Status Bar
+    status_bar = QLabel("✅ Ready")
+    status_bar.setFont(QFont("Segoe UI", 9))
+    status_bar.setStyleSheet("""
+        background-color: #2A2A2A;
+        color: #AAAAAA;
+        padding: 8px 12px;
+        border-top: 1px solid #3A3A3A;
+    """)
+    main_layout.addWidget(status_bar)
+
     dialog.setLayout(main_layout)
 
-    # At the end of create_table_view_dialog
-    return dialog, prev_button, next_button, refresh_button
+    # 🧠 You can return the status bar if you want to update it dynamically later
+    return dialog, prev_button, next_button, refresh_button, status_bar
+
+def run_query(cursor, conn, parent=None):
+    query_window = QDialog(parent)
+    query_window.setWindowTitle("📊 Run SQL Query")
+    query_window.setGeometry(100, 100, 800, 650)
+    query_window.setStyleSheet("""
+        QDialog {
+            background-color: #1E1E1E;
+            color: #E0E0E0;
+            font-family: 'Segoe UI';
+            font-size: 11pt;
+        }
+        QLabel {
+            font-weight: bold;
+            color: #4FC3F7;
+        }
+        QTextEdit {
+            background-color: #2B2B2B;
+            color: #FFFFFF;
+            border: 1px solid #3A3A3A;
+            border-radius: 5px;
+        }
+        QTableWidget {
+            background-color: #242424;
+            color: #FFFFFF;
+            border: 1px solid #3A3A3A;
+            border-radius: 5px;
+            gridline-color: #3A3A3A;
+            selection-background-color: #3A9EF5;
+            selection-color: #FFFFFF;
+            font-size: 10pt;
+        }
+        QTableWidget::item {
+            background-color: #2E2E2E;
+        }
+        QTableWidget::item:alternate {
+            background-color: #262626;
+        }
+        QHeaderView::section {
+            background-color: #3A3A3A;
+            color: #FFFFFF;
+            font-weight: bold;
+            padding: 6px;
+            border: 0;
+        }
+        QPushButton {
+            background-color: #3A9EF5;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+        }
+        QPushButton:hover {
+            background-color: #2385BA;
+        }
+    """)
+
+    layout = QVBoxLayout()
+
+    query_label = QLabel("📝 Enter SQL Query:")
+    layout.addWidget(query_label)
+
+    query_input = QTextEdit()
+    query_input.setPlaceholderText("Type your SQL query here...")
+    query_input.setFixedHeight(120)
+    layout.addWidget(query_input)
+
+    results_label = QLabel("📊 Query Results:")
+    layout.addWidget(results_label)
+
+    results_table = QTableWidget()
+    results_table.setAlternatingRowColors(True)
+    results_table.setStyleSheet("""
+        QTableWidget::item {
+            background-color: #2E2E2E;
+        }
+        QTableWidget::item:alternate {
+            background-color: #262626;
+        }
+    """)
+    layout.addWidget(results_table)
+
+    query_results = []
+
+    def execute_query():
+        nonlocal query_results
+        query = query_input.toPlainText().strip()
+        try:
+            result = execute_sql_query(cursor, conn, query)
+            if result["type"] == "select":
+                query_results[:] = result["results"]
+                headers = result["headers"]
+
+                results_table.setRowCount(len(query_results))
+                results_table.setColumnCount(len(headers))
+                results_table.setHorizontalHeaderLabels(headers)
+
+                for row_idx, row in enumerate(query_results):
+                    for col_idx, value in enumerate(row):
+                        item = QTableWidgetItem(str(value))
+                        results_table.setItem(row_idx, col_idx, item)
+
+                results_table.resizeColumnsToContents()
+                QMessageBox.information(query_window, "✅ Success", "Query executed successfully.")
+            else:
+                QMessageBox.information(query_window, "✅ Success", f"{result['rowcount']} rows affected.")
+        except Exception as e:
+            QMessageBox.critical(query_window, "⚠ Error", f"Failed to execute query:\n{e}")
+
+    def export_to_excel():
+        if not query_results:
+            QMessageBox.critical(query_window, "⚠ Error", "No data to export.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(query_window, "Save File", "", "Excel Files (*.xlsx);;All Files (*)")
+        if file_path:
+            try:
+                headers = [desc[0] for desc in cursor.description]
+                export_query_results_to_excel(query_results, headers, file_path)
+                QMessageBox.information(query_window, "✅ Success", f"Results exported to {file_path}")
+            except Exception as e:
+                QMessageBox.critical(query_window, "⚠ Error", f"Export failed:\n{e}")
+
+    def clear_query():
+        query_input.clear()
+
+    def clear_results():
+        results_table.setRowCount(0)
+
+    button_layout = QHBoxLayout()
+    button_layout.setSpacing(10)
+
+    for label, func, color in [
+        ("🚀 Execute Query", execute_query, "#3A9EF5"),
+        ("📂 Export to Excel", export_to_excel, "#4CAF50"),
+        ("📝 Clear Query", clear_query, "#D9534F"),
+        ("🗑 Clear Results", clear_results, "#D9534F")
+    ]:
+        btn = QPushButton(label)
+        btn.clicked.connect(func)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {color};
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: #666666;
+            }}
+        """)
+        button_layout.addWidget(btn)
+
+    layout.addLayout(button_layout)
+    query_window.setLayout(layout)
+    query_window.exec_()
 
 

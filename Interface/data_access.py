@@ -1,5 +1,7 @@
 import mariadb
 from datetime import datetime
+import pandas as pd
+
 
 def fetch_tables(cursor):
     """
@@ -170,3 +172,25 @@ def update_status(cursor, conn, table_name, pk_column, pk_value, new_status):
     except Exception as e:
         print(f"❌ ERROR in update_status: {e}")
         return False
+
+# query_utils.py
+
+
+def execute_sql_query(cursor, conn, query):
+    if not query:
+        raise ValueError("Query is empty")
+
+    query_lower = query.lower()
+    if query_lower.startswith("select"):
+        cursor.execute(query)
+        results = cursor.fetchall()
+        headers = [desc[0] for desc in cursor.description]
+        return {"type": "select", "results": results, "headers": headers}
+    else:
+        cursor.execute(query)
+        conn.commit()
+        return {"type": "update", "rowcount": cursor.rowcount}
+
+def export_query_results_to_excel(results, headers, file_path):
+    df = pd.DataFrame(results, columns=headers)
+    df.to_excel(file_path, index=False)
