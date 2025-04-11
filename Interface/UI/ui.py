@@ -31,7 +31,7 @@ from FILE_OPS.file_ops import (
     save_backup_schedule, export_database_to_excel, save_database_config
 )
 from db_utils import restore_database, change_db_password, backup_database
-
+from datetime import datetime
 
 
 def create_settings_page(database_config, on_save, on_back):
@@ -1796,7 +1796,6 @@ def create_table_view_dialog(
 
     return dialog, prev_button, next_button, refresh_button, status_bar
 
-
 def run_query(cursor, conn, parent=None):
     query_window = QDialog(parent)
     query_window.setWindowTitle("📊 Run SQL Query")
@@ -1952,4 +1951,223 @@ def run_query(cursor, conn, parent=None):
     query_window.setLayout(layout)
     query_window.exec_()
 
+def add_record_dialog(table_name, columns, column_types, db_insert_func, refresh_callback, parent=None):
+    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+        QFrame, QGridLayout, QLineEdit, QTextEdit, QComboBox,
+        QMessageBox, QSizePolicy
+    )
+    from PyQt5.QtCore import Qt
+    from datetime import datetime
 
+    add_window = QDialog(parent)
+    add_window.setWindowTitle(f"➕ Add Record to {table_name}")
+    add_window.setFixedSize(640, 740)
+    add_window.setStyleSheet("""
+        QDialog {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-size: 14px;
+        }
+    """)
+
+    layout = QVBoxLayout(add_window)
+    layout.setContentsMargins(30, 30, 30, 20)
+    layout.setSpacing(25)
+
+    # ───── Card Frame
+    card = QFrame()
+    card.setStyleSheet("""
+        QFrame {
+            background-color: #1C1C1C;
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #2A2A2A;
+        }
+    """)
+    card_layout = QVBoxLayout(card)
+    card_layout.setSpacing(30)
+
+    # ───── Title
+    title = QLabel(f"➕ Add New Entry to '{table_name}'")
+    title.setAlignment(Qt.AlignCenter)
+    title.setStyleSheet("""
+        font-size: 22px;
+        font-weight: bold;
+        color: #2D9CDB;
+        padding-bottom: 6px;
+    """)
+    card_layout.addWidget(title)
+
+    # ───── Form Grid
+    form_grid = QGridLayout()
+    form_grid.setHorizontalSpacing(20)
+    form_grid.setVerticalSpacing(16)
+
+    entry_widgets = {}
+    non_auto_columns = [col for col in columns if col != columns[0]]
+    row = 0
+
+    for col in non_auto_columns:
+        label = QLabel(col)
+        label.setStyleSheet("""
+            color: #B0B0B0;
+            font-weight: 600;
+            font-size: 13px;
+        """)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        label.setFixedWidth(140)
+
+        col_type = column_types.get(col, "").lower()
+        entry = None
+
+        # Smart field handling
+        if col.lower() == "status":
+            entry = QComboBox()
+            entry.addItems(["In Progress", "Waiting for Parts", "Completed", "Picked Up"])
+            entry.setCurrentText("In Progress")
+
+        elif col.lower() == "datasave":
+            entry = QLineEdit("1")
+
+        elif col.lower() in ["startdate", "date"] or ("date" in col_type and col.lower() != "enddate"):
+            entry = QLineEdit(datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S") if "time" in col_type else datetime.now().strftime("%Y-%m-%d"))
+            entry.setPlaceholderText("YYYY-MM-DD or timestamp")
+
+        elif col.lower() == "enddate":
+            entry = QLineEdit()
+            entry.setPlaceholderText("Leave empty unless ending now")
+
+        elif "text" in col_type or "varchar(255)" in col_type:
+            entry = QTextEdit()
+            entry.setMinimumHeight(80)
+        else:
+            entry = QLineEdit()
+
+        entry.setStyleSheet("""
+            QLineEdit, QTextEdit, QComboBox {
+                background-color: #1E1E1E;
+                color: white;
+                border: 1px solid #3A9EF5;
+                border-radius: 6px;
+                padding: 6px 10px;
+            }
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
+                border: 1px solid #2D9CDB;
+            }
+        """)
+
+        # Size consistency
+        if isinstance(entry, QLineEdit):
+            entry.setMinimumHeight(36)
+        elif isinstance(entry, QTextEdit):
+            entry.setMinimumHeight(80)
+        elif isinstance(entry, QComboBox):
+            entry.setMinimumHeight(36)
+
+        entry.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        entry_widgets[col] = entry
+
+        form_grid.addWidget(label, row, 0)
+        form_grid.addWidget(entry, row, 1)
+        row += 1
+
+    card_layout.addLayout(form_grid)
+    card_layout.addStretch()
+
+    # ───── Buttons
+    button_layout = QHBoxLayout()
+    button_layout.setSpacing(20)
+    button_layout.addStretch(1)
+
+    save_button = QPushButton("💾 Save")
+    cancel_button = QPushButton("❌ Cancel")
+
+    save_button.setStyleSheet("""
+        QPushButton {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 24px;
+            font-weight: bold;
+            border-radius: 6px;
+        }
+        QPushButton:hover {
+            background-color: #3FA045;
+        }
+    """)
+    cancel_button.setStyleSheet("""
+        QPushButton {
+            background-color: #F44336;
+            color: white;
+            padding: 10px 24px;
+            font-weight: bold;
+            border-radius: 6px;
+        }
+        QPushButton:hover {
+            background-color: #D32F2F;
+        }
+    """)
+
+    button_layout.addWidget(save_button)
+    button_layout.addWidget(cancel_button)
+    button_layout.addStretch(1)
+    card_layout.addLayout(button_layout)
+
+    layout.addWidget(card)
+
+    # ───── Save Logic
+    def save():
+        values = []
+        for widget in entry_widgets.values():
+            if isinstance(widget, QTextEdit):
+                value = widget.toPlainText().strip()
+            elif isinstance(widget, QComboBox):
+                value = widget.currentText()
+            else:
+                value = widget.text().strip()
+            values.append(value if value else None)
+
+        success = db_insert_func(table_name, non_auto_columns, values)
+        if success:
+            msg = QMessageBox(parent)
+            msg.setWindowTitle("✅ Success")
+            msg.setText("Record added successfully!")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #1E1E1E;
+                    color: white;
+                    border-radius: 10px;
+                }
+                QLabel {
+                    color: white;
+                    font-size: 14px;
+                    font-weight: bold;
+                }
+                QPushButton {
+                    background-color: #3A9EF5;
+                    color: white;
+                    padding: 8px;
+                    border-radius: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #307ACC;
+                }
+            """)
+            msg.exec_()
+            refresh_callback()
+            add_window.accept()
+        else:
+            QMessageBox.critical(add_window, "❌ Error", "Failed to add record.")
+
+    save_button.clicked.connect(save)
+    cancel_button.clicked.connect(add_window.reject)
+
+    # Auto focus first field
+    if entry_widgets:
+        first_widget = next(iter(entry_widgets.values()))
+        if hasattr(first_widget, "setFocus"):
+            first_widget.setFocus()
+
+    add_window.exec_()

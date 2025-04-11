@@ -44,12 +44,12 @@ from UI.ui import (
 from UI.splashscreen import SplashScreen
 from UI.initthread import InitializationThread
 
-from data_access import fetch_tables, connect_to_database, fetch_data,  get_primary_key_column, check_primary_key_exists, check_duplicate_primary_key, update_column, update_primary_key, update_auto_increment_if_needed
+from data_access import fetch_tables, connect_to_database, fetch_data,  get_primary_key_column, check_primary_key_exists, check_duplicate_primary_key, update_column, update_primary_key, update_auto_increment_if_needed, insert_record
 
 from error_utils import handle_db_error, log_error
 from data_access import update_status, fetch_primary_key_column
 from data_access import fetch_table_data_with_columns
-from UI.ui import create_table_view_dialog  # You’ll create this in ui.py
+from UI.ui import create_table_view_dialog, add_record_dialog  # You’ll create this in ui.py
 
 
 
@@ -271,6 +271,14 @@ class DatabaseApp(QMainWindow):
             now = datetime.now().strftime("%H:%M:%S")
             self.status_bar.setText(f"{now} : {message}.")
 
+    def get_column_types(self):
+        """
+        Fetches a dictionary of column_name: column_type for the current table.
+        """
+        self.cursor.execute(f"DESCRIBE {self.current_table_name}")
+        return {col[0]: col[1] for col in self.cursor.fetchall()}
+
+
     def view_table_data(self, table_name): #MAIN
         self.table_name = table_name
         self.current_table_name = table_name
@@ -284,6 +292,8 @@ class DatabaseApp(QMainWindow):
                 limit=self.table_limit,
                 offset=self.table_offset
             )
+            self.columns = columns
+
 
             self.table_widget = QTableWidget()
             self.table_widget.setColumnCount(len(columns))
@@ -324,7 +334,15 @@ class DatabaseApp(QMainWindow):
                 prev_button=prev_btn,
                 next_button=next_btn
             ),
-            add_handler=lambda: self.add_record(table_name, columns, self.table_widget),
+            add_handler=lambda: add_record_dialog(
+                table_name=self.current_table_name,
+                columns=self.columns,
+                column_types=self.get_column_types(),  # You might need a helper
+                db_insert_func=lambda t, c, v: insert_record(self.cursor, self.conn, t, c, v),
+                refresh_callback=self.refresh_table,
+                parent=self.dialog  # or self if you’re using QWidget
+            ),
+
             edit_handler=lambda: edit_selected_job(self),
             delete_handler=lambda: self.delete_record(table_name, self.table_widget, columns[0]),
             close_handler=lambda: self.dialog.close()
@@ -426,158 +444,18 @@ class DatabaseApp(QMainWindow):
             self.is_refreshing = False
             self.refresh_button.setEnabled(True)
 
-    def add_record(self, table_name, columns, table_widget): #UI + DATA_ACCESS
-        """Opens a dark-themed dialog to add a new record to the specified table."""
+    def add_record_controller(self):
+        self.cursor.execute(f"DESCRIBE {self.current_table_name}")
+        column_details = {col[0]: col[1] for col in self.cursor.fetchall()}
 
-        # Fetch column types from the database
-        self.is_adding_new_record = True
-        self.cursor.execute(f"DESCRIBE {table_name}")
-        column_details = {col[0]: col[1] for col in self.cursor.fetchall()}  # {column_name: data_type}
-
-        # Create the dialog window
-        add_window = QDialog()
-        add_window.setWindowTitle(f"➕ Add Record to {table_name}")
-        add_window.setGeometry(400, 200, 550, 600)
-        add_window.setStyleSheet("""
-            QDialog {
-                background-color: #121212;  /* Fully dark background */
-                color: white;
-                font-size: 14px;
-                border-radius: 8px;
-            }
-        """)
-
-        # Create a form layout for the input fields
-        form_layout = QFormLayout()
-        entry_widgets = {}
-
-        # Exclude the first column (assumed to be the primary key)
-        non_auto_columns = [col for col in columns if col != columns[0]]
-
-        for col in non_auto_columns:
-            label = QLabel(f"🔹 {col}")
-            label.setStyleSheet("font-weight: bold; color: #3A9EF5; margin-bottom: 3px;")
-            column_type = column_details.get(col, "").lower()
-
-            # **Set Default Values for Special Fields**
-            if col.lower() == "status":
-                entry_widget = QLineEdit("In Progress")
-            elif col.lower() == "datasave":
-                entry_widget = QLineEdit("1")
-            elif col.lower() == "startdate":
-                entry_widget = QLineEdit(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            elif col.lower() == "date":
-                entry_widget = QLineEdit(datetime.now().strftime("%Y-%m-%d"))
-            elif col.lower() == "enddate":
-                entry_widget = QLineEdit("")
-            elif "date" in column_type:
-                entry_widget = QLineEdit(datetime.now().strftime("%Y-%m-%d"))
-            elif "text" in column_type or "varchar(255)" in column_type:
-                entry_widget = QTextEdit()
-                entry_widget.setFixedHeight(50)
-            else:
-                entry_widget = QLineEdit()
-
-            entry_widget.setStyleSheet("""
-                QLineEdit, QTextEdit {
-                    background-color: #1E1E1E;
-                    color: white;
-                    border: 1px solid #3A9EF5;
-                    border-radius: 5px;
-                    padding: 6px;
-                }
-            """)
-
-            entry_widgets[col] = entry_widget
-            form_layout.addRow(label, entry_widget)
-
-        # Create Save and Cancel buttons
-        button_layout = QHBoxLayout()
-        save_button = QPushButton("💾 Save")
-        cancel_button = QPushButton("❌ Cancel")
-
-        save_button.setStyleSheet("background-color: #4CAF50; color: white; padding: 10px; border-radius: 5px;")
-        cancel_button.setStyleSheet("background-color: #F44336; color: white; padding: 10px; border-radius: 5px;")
-
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(cancel_button)
-
-        # **Save Function**
-        def save_new_record():
-            """Saves the new record into the database and refreshes the UI properly."""
-            values = []
-            for col, widget in entry_widgets.items():
-                if isinstance(widget, QTextEdit):
-                    value = widget.toPlainText().strip()
-                else:
-                    value = widget.text().strip()
-
-                values.append(value if value else None)  # Convert empty values to None
-
-            try:
-                placeholders = ", ".join(["%s"] * len(non_auto_columns))
-                query = f"INSERT INTO {table_name} ({', '.join(non_auto_columns)}) VALUES ({placeholders})"
-
-                self.cursor.execute(query, values)
-                self.conn.commit()
-
-                msg_box = QMessageBox()
-                msg_box.setWindowTitle("✅ Success")
-                msg_box.setText("Record added successfully!")
-
-                # ✅ Apply a Dark Mode StyleSheet
-                msg_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: #1E1E1E;  /* Dark Background */
-                    color: white;  /* White Text */
-                    border-radius: 10px;
-                }
-                QLabel {
-                    color: white;  /* Ensure text is readable */
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton {
-                    background-color: #3A9EF5;
-                    color: white;
-                    padding: 8px;
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #307ACC;
-                }
-            """)
-
-
-                msg_box.exec_()
-
-                now = datetime.now().strftime("%H:%M:%S")
-                if hasattr(self, "status_bar"):
-                    self.status_bar.setText(f"✅ Record added to '{table_name}' at {now}.")
-
-                # ✅ Refresh the table without passing arguments
-                self.refresh_table(suppress_status=True) # ✅ Correct function call
-
-                add_window.close()  # Close the add window
-                self.is_adding_new_record = False  # Reset flag
-
-                
-
-            except mariadb.Error as e:
-                QMessageBox.critical(add_window, "❌ Error", f"Failed to add record: {e}")
-
-        # ✅ Connect Save and Cancel buttons
-        save_button.clicked.connect(save_new_record)
-        cancel_button.clicked.connect(add_window.close)
-
-        # Add widgets to layout
-        layout = QVBoxLayout()
-        layout.addLayout(form_layout)
-        layout.addLayout(button_layout)
-        add_window.setLayout(layout)
-
-        # Show the dialog
-        add_window.exec_()
+        add_record_dialog(
+            table_name=self.current_table_name,
+            columns=self.columns,
+            column_types=column_details,
+            db_insert_func=lambda t, c, v: insert_record(self.cursor, self.conn, t, c, v),
+            refresh_callback=self.refresh_table,
+            parent=self.dialog  # or main window
+        )
 
     def delete_record(self, table_name, table_widget, primary_key_column):  # UI + DATA_ACCESS
         """Deletes a selected record from the table safely with error handling."""

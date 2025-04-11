@@ -173,9 +173,6 @@ def update_status(cursor, conn, table_name, pk_column, pk_value, new_status):
         print(f"❌ ERROR in update_status: {e}")
         return False
 
-# query_utils.py
-
-
 def execute_sql_query(cursor, conn, query):
     if not query:
         raise ValueError("Query is empty")
@@ -194,3 +191,18 @@ def execute_sql_query(cursor, conn, query):
 def export_query_results_to_excel(results, headers, file_path):
     df = pd.DataFrame(results, columns=headers)
     df.to_excel(file_path, index=False)
+
+def insert_record(cursor, conn, table_name, columns, values):
+    """
+    Inserts a record into the database.
+    Returns True on success, False on failure.
+    """
+    try:
+        placeholders = ", ".join(["%s"] * len(columns))
+        query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+        cursor.execute(query, values)
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ DB Insert Failed: {e}")
+        return False
