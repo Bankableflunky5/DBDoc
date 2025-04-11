@@ -257,7 +257,7 @@ class DatabaseApp(QMainWindow):
             if success:
                 print(f"✅ Status updated to '{new_status}' for {pk_column} = {pk_value}")
                 self._update_status(f"✅ Status updated to '{new_status}' for {pk_value}")
-                self.refresh_table(suppress_status=True)
+                #self.refresh_table(suppress_status=True)
             else:
                 print(f"❌ Failed to update status.")
                 self._update_status(f"❌ Failed to update status for ID {pk_value}")
@@ -336,31 +336,53 @@ class DatabaseApp(QMainWindow):
         except Exception as e:
             QMessageBox.critical(None, "Error", f"Failed to load data for {table_name}: {e}")
 
-    def search_table(self, column, search_text):  #MAIN
-        """Search for records in the selected table without pagination restrictions."""
+    def search_table(self, selected_columns, search_text):
+        """Search using multiple tokens across selected columns."""
 
-        if not search_text.strip():
-            self.status_bar.setText("ℹ️ Enter text to search.")
+        if not selected_columns or not search_text.strip():
+            self.status_bar.setText("ℹ️ Select column(s) and enter search text.")
             return
 
         try:
-            search_text = f"%{search_text}%"
-            query = f"SELECT * FROM `{self.current_table_name}` WHERE `{column}` LIKE %s ORDER BY `{column}` DESC;"
-            self.cursor.execute(query, (search_text,))
+            tokens = [word.strip() for word in search_text.strip().split() if word.strip()]
+            if not tokens:
+                self.status_bar.setText("ℹ️ No valid keywords entered.")
+                return
+
+            now = datetime.now().strftime("%H:%M:%S")
+
+            # Build WHERE clause: each token must match at least one column
+            conditions = []
+            params = []
+
+            for token in tokens:
+                token_conditions = [f"`{col}` LIKE %s" for col in selected_columns]
+                conditions.append(f"({' OR '.join(token_conditions)})")
+                params.extend([f"%{token}%"] * len(selected_columns))
+
+            where_clause = " AND ".join(conditions)
+            query = f"""
+                SELECT * FROM `{self.current_table_name}`
+                WHERE {where_clause};
+            """
+
+            self.cursor.execute(query, tuple(params))
             results = self.cursor.fetchall()
 
             if not results:
                 self.table_widget.setRowCount(0)
-                self.status_bar.setText(f"⚠ No matches found for '{search_text.strip('%')}'.")
+                self.status_bar.setText(
+                    f"⚠ No matches for '{search_text.strip()}' in {', '.join(selected_columns)}"
+                )
             else:
-                populate_table(self.table_widget, self.current_table_name, results)
-                now = datetime.now().strftime("%H:%M:%S")
-                self.status_bar.setText(f"🔍 Found {len(results)} result(s) for '{search_text.strip('%')}' at {now}.")
-
+                populate_table(self.table_widget, self.current_table_name, results, self.update_status_and_database)
+                self.status_bar.setText(
+                    f"🔍 {len(results)} result(s) for '{search_text.strip()}' in {', '.join(selected_columns)} at {now}"
+                )
 
         except mariadb.Error as e:
             QMessageBox.critical(self, "Database Error", f"❌ Database Error: {e}")
-            self.status_bar.setText("❌ Error occurred while searching.")
+            self.status_bar.setText("❌ Search failed.")
 
     def refresh_table(self, suppress_status=False):
         """UI logic to refresh the table."""

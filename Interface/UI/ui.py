@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QAction, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSpacerItem, QStyle,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView, QTextEdit
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView, QTextEdit, QAbstractItemView
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -671,7 +671,7 @@ def event_filter(parent, source, event):
     # Fallback to the default eventFilter behavior of the parent
     return super(type(parent), parent).eventFilter(source, event)
 
-def populate_table(table_widget, table_name, data):
+def populate_table(table_widget, table_name, data, status_update_callback):
     """Populates the table with fresh data without triggering unnecessary updates."""
 
     if not table_widget:
@@ -709,8 +709,8 @@ def populate_table(table_widget, table_name, data):
                 table_widget.setCellWidget(row_idx, col_idx, status_combo)
 
                 status_combo.currentTextChanged.connect(
-                    lambda text, row=row_idx: update_status_and_database(row, text)
-                )
+                lambda text, row=row_idx: status_update_callback(row, text)
+            )
 
             else:
                 item = QTableWidgetItem(str(value) if value is not None else "")
@@ -1545,21 +1545,8 @@ def create_table_view_dialog(
     title.setStyleSheet("color: #2D9CDB; padding: 20px; font-size: 20px;")
     main_layout.addWidget(title)
 
-    # ───────────────────── Search
+    # ───────────────────── Search Bar
     search_layout = QHBoxLayout()
-    search_label = QLabel("🔍 Search by:")
-    search_label.setFont(QFont("Segoe UI", 10))
-
-    column_dropdown = QComboBox()
-    column_dropdown.addItems(columns)
-    column_dropdown.setFont(QFont("Segoe UI", 10))
-    column_dropdown.setStyleSheet("""
-        background-color: #2A2A2A;
-        color: #E0E0E0;
-        padding: 6px;
-        border-radius: 5px;
-        border: 1px solid #3A3A3A;
-    """)
 
     search_entry = QLineEdit()
     search_entry.setPlaceholderText("Enter search query...")
@@ -1572,72 +1559,160 @@ def create_table_view_dialog(
         border: 1px solid #3A3A3A;
     """)
 
-    # Clear action
     clear_action = QAction(search_entry)
     clear_action.setIcon(search_entry.style().standardIcon(QStyle.SP_DialogCloseButton))
     clear_action.triggered.connect(search_entry.clear)
     search_entry.addAction(clear_action, QLineEdit.TrailingPosition)
 
-    # Buttons
-    #search_button = QPushButton("Search 🔎")
-    #search_button.clicked.connect(lambda: search_handler(column_dropdown.currentText(), search_entry.text()))
-
     refresh_button = QPushButton("🔃")
     refresh_button.clicked.connect(refresh_handler)
+    refresh_button.setFont(QFont("Segoe UI", 10))
+    refresh_button.setFixedHeight(32)
+    refresh_button.setStyleSheet("""
+        QPushButton {
+            background-color: #2D9CDB;
+            color: white;
+            border-radius: 5px;
+            padding: 4px 12px;
+        }
+        QPushButton:hover {
+            background-color: #2385BA;
+        }
+    """)
 
-    '''for btn in [search_button, refresh_button]:
-        btn.setFont(QFont("Segoe UI", 10))
-        btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2D9CDB;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #2385BA;
-            }
-        """)'''
+    # ───── Filter Button
+    filter_toggle_btn = QPushButton("🔍 Filter Columns ▾")
+    filter_toggle_btn.setFont(QFont("Segoe UI", 10))
+    filter_toggle_btn.setFixedHeight(32)
+    filter_toggle_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #2A2A2A;
+            color: #2D9CDB;
+            border: 1px solid #2D9CDB;
+            border-radius: 5px;
+            padding: 4px 12px;
+        }
+        QPushButton:hover {
+            background-color: #1A1A1A;
+        }
+    """)
 
-    # 🧠 LIVE SEARCH
-    search_entry.textChanged.connect(lambda text: search_handler(column_dropdown.currentText(), text))
+    # ───── Floating Filter Panel
+    filter_popup = QFrame(dialog)
+    filter_popup.setFrameShape(QFrame.StyledPanel)
+    filter_popup.setStyleSheet("""
+        QFrame {
+            background-color: #1F1F1F;
+            border: 1px solid #3A3A3A;
+            border-radius: 8px;
+        }
+    """)
+    filter_popup.setFixedSize(220, 250)
+    filter_popup.setVisible(False)
 
-    search_layout.addWidget(search_label)
-    search_layout.addWidget(column_dropdown)
+    popup_layout = QVBoxLayout(filter_popup)
+    popup_layout.setContentsMargins(8, 8, 8, 8)
+
+    column_list = QListWidget(filter_popup)
+    column_list.setSelectionMode(QAbstractItemView.MultiSelection)
+    column_list.setStyleSheet("""
+    QListWidget {
+        background-color: #2A2A2A;
+        color: #E0E0E0;
+        border: none;
+    }
+    QListWidget::item:selected {
+        background-color: #2D9CDB;
+        color: white;
+    }
+    QListWidget::item:hover {
+        background-color: #333333;
+    }
+    QScrollBar:vertical {
+        background: #2A2A2A;
+        width: 8px;
+        margin: 0px;
+    }
+    QScrollBar::handle:vertical {
+        background: #555555;
+        border-radius: 4px;
+    }
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+        height: 0;
+    }
+""")
+
+    column_list.setAlternatingRowColors(False)
+
+
+    for col in columns:
+        item = QListWidgetItem(col)
+        item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+        item.setCheckState(Qt.Unchecked)
+        column_list.addItem(item)
+
+    popup_layout.addWidget(column_list)
+
+    def toggle_filter_popup():
+        if filter_popup.isVisible():
+            filter_popup.setVisible(False)
+        else:
+            button_pos = filter_toggle_btn.mapToGlobal(filter_toggle_btn.rect().bottomLeft())
+            dialog_pos = dialog.mapFromGlobal(button_pos)
+            filter_popup.move(dialog_pos)
+            filter_popup.setVisible(True)
+            filter_popup.raise_()
+
+    filter_toggle_btn.clicked.connect(toggle_filter_popup)
+
+    def get_checked_columns():
+        checked = [
+            column_list.item(i).text()
+            for i in range(column_list.count())
+            if column_list.item(i).checkState() == Qt.Checked
+        ]
+        return checked if checked else columns  # fallback to all columns
+
+
+    search_entry.textChanged.connect(
+        lambda text: search_handler(get_checked_columns(), text)
+    )
+
+    # Layout: search bar row
+    search_layout.addWidget(filter_toggle_btn)
     search_layout.addWidget(search_entry)
-    #search_layout.addWidget(search_button)
     search_layout.addWidget(refresh_button)
     main_layout.addLayout(search_layout)
+
+    # Add popup to top-level (it floats)
+    filter_popup.setParent(dialog)
 
     # ───────────────────── Table
     scroll_area = QScrollArea()
     scroll_area.setWidgetResizable(True)
 
     table_widget.setStyleSheet("""
-    QTableWidget {
-        background-color: #2A2A2A;
-        color: #E0E0E0;
-        gridline-color: #3A3A3A;
-        selection-background-color: #2D9CDB;
-        selection-color: #FFFFFF;
-        font-size: 10pt;
-    }
-    QTableWidget::item {
-        background-color: #2E2E2E;
-    }
-    QTableWidget::item:alternate {
-        background-color: #242424;
-    }
-    QHeaderView::section {
-        background-color: #2D2D2D;
-        color: #E0E0E0;
-        font-weight: bold;
-        padding: 8px;
-        border: 0px;
-    }
+        QTableWidget {
+            background-color: #2A2A2A;
+            color: #E0E0E0;
+            gridline-color: #3A3A3A;
+            selection-background-color: #2D9CDB;
+            selection-color: #FFFFFF;
+            font-size: 10pt;
+        }
+        QTableWidget::item {
+            background-color: #2E2E2E;
+        }
+        QHeaderView::section {
+            background-color: #2D2D2D;
+            color: #E0E0E0;
+            font-weight: bold;
+            padding: 8px;
+            border: 0px;
+        }
     """)
 
-    table_widget.setAlternatingRowColors(True)
+    table_widget.setAlternatingRowColors(False)
     scroll_area.setWidget(table_widget)
     main_layout.addWidget(scroll_area)
 
@@ -1719,8 +1794,8 @@ def create_table_view_dialog(
 
     dialog.setLayout(main_layout)
 
-    # 🧠 You can return the status bar if you want to update it dynamically later
     return dialog, prev_button, next_button, refresh_button, status_bar
+
 
 def run_query(cursor, conn, parent=None):
     query_window = QDialog(parent)
