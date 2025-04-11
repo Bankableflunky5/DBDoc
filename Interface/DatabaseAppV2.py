@@ -269,7 +269,7 @@ class DatabaseApp(QMainWindow):
     def _update_status(self, message: str):
         if hasattr(self, "status_bar"):
             now = datetime.now().strftime("%H:%M:%S")
-            self.status_bar.setText(f"{message} at {now}.")
+            self.status_bar.setText(f"{now} : {message}.")
 
     def view_table_data(self, table_name): #MAIN
         self.table_name = table_name
